@@ -22,7 +22,7 @@ local runtime_set = 'set runtimepath^=./build/lib/nvim/'
 M.nvim_prog = (os.getenv('NVIM_PRG') or t.paths.test_build_dir .. '/bin/nvim')
 -- Default settings for the test session.
 M.nvim_set = (
-  'set shortmess+=IS background=light termguicolors noswapfile noautoindent startofline'
+  'set shortmess+=IS background=light noswapfile noautoindent startofline'
   .. ' laststatus=1 undodir=. directory=. viewdir=. backupdir=.'
   .. ' belloff= wildoptions-=pum joinspaces noshowcmd noruler nomore redrawdebug=invalid'
 )
@@ -256,7 +256,7 @@ end
 --- @param notification_cb function?
 --- @param setup_cb function?
 --- @param timeout integer
---- @return {[1]: integer, [2]: string}
+--- @return [integer, string]
 function M.run_session(lsession, request_cb, notification_cb, setup_cb, timeout)
   local on_request --- @type function?
   local on_notification --- @type function?

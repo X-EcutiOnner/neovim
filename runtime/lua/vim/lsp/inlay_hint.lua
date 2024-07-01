@@ -43,7 +43,7 @@ function M.on_inlayhint(err, result, ctx, _)
     return
   end
   local bufnr = assert(ctx.bufnr)
-  if vim.b[bufnr].changedtick ~= ctx.version then
+  if util.buf_versions[bufnr] ~= ctx.version then
     return
   end
   local client_id = ctx.client_id
@@ -324,7 +324,7 @@ api.nvim_set_decoration_provider(namespace, {
       return
     end
 
-    if bufstate.version ~= vim.b[bufnr].changedtick then
+    if bufstate.version ~= util.buf_versions[bufnr] then
       return
     end
 
@@ -348,7 +348,7 @@ api.nvim_set_decoration_provider(namespace, {
                 text = text .. part.value
               end
             end
-            local vt = {} --- @type {[1]: string, [2]: string?}[]
+            local vt = {} --- @type [string, string?][]
             if hint.paddingLeft then
               vt[#vt + 1] = { ' ' }
             end
@@ -370,7 +370,7 @@ api.nvim_set_decoration_provider(namespace, {
 })
 
 --- Query whether inlay hint is enabled in the {filter}ed scope
---- @param filter vim.lsp.inlay_hint.enable.Filter
+--- @param filter? vim.lsp.inlay_hint.enable.Filter
 --- @return boolean
 --- @since 12
 function M.is_enabled(filter)

@@ -4,7 +4,6 @@ local Screen = require('test.functional.ui.screen')
 
 local exec_lua = n.exec_lua
 local eq = t.eq
-local neq = t.neq
 local eval = n.eval
 local command = n.command
 local clear = n.clear
@@ -90,6 +89,22 @@ describe('vim.highlight.range', function()
                                                                   |
     ]])
   end)
+
+  it('can use -1 or v:maxcol to indicate end of line', function()
+    exec_lua([[
+      local ns = vim.api.nvim_create_namespace('')
+      vim.highlight.range(0, ns, 'Search', { 0, 4 }, { 1, -1 }, {})
+      vim.highlight.range(0, ns, 'Search', { 2, 6 }, { 3, vim.v.maxcol }, {})
+    ]])
+    screen:expect([[
+      ^asdf{10:ghjkl}{100:$}                                                  |
+      {10:«口=口»}{100:$}                                                    |
+      qwerty{10:uiop}{100:$}                                                 |
+      {10:口口=口口}{1:$}                                                  |
+      zxcvbnm{1:$}                                                    |
+                                                                  |
+    ]])
+  end)
 end)
 
 describe('vim.highlight.on_yank', function()
@@ -126,9 +141,11 @@ describe('vim.highlight.on_yank', function()
       vim.api.nvim_buf_set_mark(0,"]",1,1,{})
       vim.highlight.on_yank({timeout = math.huge, on_macro = true, event = {operator = "y"}})
     ]])
-    neq({}, api.nvim__win_get_ns(0))
+    local ns = api.nvim_create_namespace('hlyank')
+    local win = api.nvim_get_current_win()
+    eq({ win }, api.nvim__ns_get(ns).wins)
     command('wincmd w')
-    eq({}, api.nvim__win_get_ns(0))
+    eq({ win }, api.nvim__ns_get(ns).wins)
   end)
 
   it('removes old highlight if new one is created before old one times out', function()
@@ -138,14 +155,17 @@ describe('vim.highlight.on_yank', function()
       vim.api.nvim_buf_set_mark(0,"]",1,1,{})
       vim.highlight.on_yank({timeout = math.huge, on_macro = true, event = {operator = "y"}})
     ]])
-    neq({}, api.nvim__win_get_ns(0))
+    local ns = api.nvim_create_namespace('hlyank')
+    eq(api.nvim_get_current_win(), api.nvim__ns_get(ns).wins[1])
     command('wincmd w')
     exec_lua([[
       vim.api.nvim_buf_set_mark(0,"[",1,1,{})
       vim.api.nvim_buf_set_mark(0,"]",1,1,{})
       vim.highlight.on_yank({timeout = math.huge, on_macro = true, event = {operator = "y"}})
     ]])
+    local win = api.nvim_get_current_win()
+    eq({ win }, api.nvim__ns_get(ns).wins)
     command('wincmd w')
-    eq({}, api.nvim__win_get_ns(0))
+    eq({ win }, api.nvim__ns_get(ns).wins)
   end)
 end)

@@ -19,7 +19,7 @@
 --- @field returns_desc? string
 --- @field signature? string
 --- @field desc? string
---- @field params {[1]:string, [2]:string, [3]:string}[]
+--- @field params [string, string, string][]
 --- @field lua? false Do not render type information
 --- @field tags? string[] Extra tags
 --- @field data? string Used by gen_eval.lua
@@ -1238,33 +1238,33 @@ M.funcs = {
     base = 1,
     desc = [=[
       The result is a Number, which is the byte index of the column
-      position given with {expr}.  The accepted positions are:
-          .	    the cursor position
-          $	    the end of the cursor line (the result is the
-      	    number of bytes in the cursor line plus one)
-          'x	    position of mark x (if the mark is not set, 0 is
-      	    returned)
-          v       In Visual mode: the start of the Visual area (the
-      	    cursor is the end).  When not in Visual mode
-      	    returns the cursor position.  Differs from |'<| in
-      	    that it's updated right away.
+      position given with {expr}.
+      For accepted positions see |getpos()|.
+      When {expr} is "$", it means the end of the cursor line, so
+      the result is the number of bytes in the cursor line plus one.
       Additionally {expr} can be [lnum, col]: a |List| with the line
       and column number. Most useful when the column is "$", to get
       the last column of a specific line.  When "lnum" or "col" is
       out of range then col() returns zero.
+
       With the optional {winid} argument the values are obtained for
       that window instead of the current window.
+
       To get the line number use |line()|.  To get both use
       |getpos()|.
+
       For the screen column position use |virtcol()|.  For the
       character position use |charcol()|.
+
       Note that only marks in the current file can be used.
+
       Examples: >vim
       	echo col(".")			" column of cursor
       	echo col("$")			" length of cursor line plus one
       	echo col("'t")			" column of mark t
       	echo col("'" .. markname)	" column of mark markname
-      <The first column is 1.  Returns 0 if {expr} is invalid or when
+      <
+      The first column is 1.  Returns 0 if {expr} is invalid or when
       the window with ID {winid} is not found.
       For an uppercase mark the column may actually be in another
       buffer.
@@ -3448,7 +3448,7 @@ M.funcs = {
       <
     ]=],
     name = 'getchar',
-    params = {},
+    params = { { 'expr', '0|1' } },
     returns = 'integer',
     signature = 'getchar([{expr}])',
   },
@@ -3537,7 +3537,7 @@ M.funcs = {
       result is converted to a string.
     ]=],
     name = 'getcharstr',
-    params = {},
+    params = { { 'expr', '0|1' } },
     returns = 'string',
     signature = 'getcharstr([{expr}])',
   },
@@ -4047,8 +4047,9 @@ M.funcs = {
 
     ]=],
     name = 'getmarklist',
-    params = { { 'buf', 'any' } },
+    params = { { 'buf', 'integer?' } },
     signature = 'getmarklist([{buf}])',
+    returns = 'vim.fn.getmarklist.ret.item[]',
   },
   getmatches = {
     args = { 0, 1 },
@@ -4140,9 +4141,34 @@ M.funcs = {
     args = 1,
     base = 1,
     desc = [=[
-      Get the position for String {expr}.  For possible values of
-      {expr} see |line()|.  For getting the cursor position see
-      |getcurpos()|.
+      Get the position for String {expr}.
+      The accepted values for {expr} are:
+          .	    The cursor position.
+          $	    The last line in the current buffer.
+          'x	    Position of mark x (if the mark is not set, 0 is
+      	    returned for all values).
+          w0	    First line visible in current window (one if the
+      	    display isn't updated, e.g. in silent Ex mode).
+          w$	    Last line visible in current window (this is one
+      	    less than "w0" if no lines are visible).
+          v	    When not in Visual mode, returns the cursor
+      	    position.  In Visual mode, returns the other end
+      	    of the Visual area.  A good way to think about
+      	    this is that in Visual mode "v" and "." complement
+      	    each other.  While "." refers to the cursor
+      	    position, "v" refers to where |v_o| would move the
+      	    cursor.  As a result, you can use "v" and "."
+      	    together to work on all of a selection in
+      	    characterwise Visual mode.  If the cursor is at
+      	    the end of a characterwise Visual area, "v" refers
+      	    to the start of the same Visual area.  And if the
+      	    cursor is at the start of a characterwise Visual
+      	    area, "v" refers to the end of the same Visual
+      	    area.  "v" differs from |'<| and |'>| in that it's
+      	    updated right away.
+      Note that a mark in another file can be used.  The line number
+      then applies to another buffer.
+
       The result is a |List| with four numbers:
           [bufnum, lnum, col, off]
       "bufnum" is zero, unless a mark like '0 or 'A is used, then it
@@ -4153,20 +4179,25 @@ M.funcs = {
       it is the offset in screen columns from the start of the
       character.  E.g., a position within a <Tab> or after the last
       character.
-      Note that for '< and '> Visual mode matters: when it is "V"
-      (visual line mode) the column of '< is zero and the column of
-      '> is a large number equal to |v:maxcol|.
+
+      For getting the cursor position see |getcurpos()|.
       The column number in the returned List is the byte position
       within the line. To get the character position in the line,
       use |getcharpos()|.
+
+      Note that for '< and '> Visual mode matters: when it is "V"
+      (visual line mode) the column of '< is zero and the column of
+      '> is a large number equal to |v:maxcol|.
       A very large column number equal to |v:maxcol| can be returned,
       in which case it means "after the end of the line".
       If {expr} is invalid, returns a list with all zeros.
+
       This can be used to save and restore the position of a mark: >vim
       	let save_a_mark = getpos("'a")
       	" ...
       	call setpos("'a", save_a_mark)
-      <Also see |getcharpos()|, |getcurpos()| and |setpos()|.
+      <
+      Also see |getcharpos()|, |getcurpos()| and |setpos()|.
 
     ]=],
     name = 'getpos',
@@ -4404,8 +4435,8 @@ M.funcs = {
         difference if the buffer is displayed in a window with
         different 'virtualedit' or 'list' values.
 
-      Examples: >
-      	:xnoremap <CR>
+      Examples: >vim
+      	xnoremap <CR>
       	\ <Cmd>echom getregion(
       	\ getpos('v'), getpos('.'), #{ type: mode() })<CR>
       <
@@ -6069,28 +6100,16 @@ M.funcs = {
     args = { 1, 2 },
     base = 1,
     desc = [=[
-      The result is a Number, which is the line number of the file
-      position given with {expr}.  The {expr} argument is a string.
-      The accepted positions are:
-          .	    the cursor position
-          $	    the last line in the current buffer
-          'x	    position of mark x (if the mark is not set, 0 is
-      	    returned)
-          w0	    first line visible in current window (one if the
-      	    display isn't updated, e.g. in silent Ex mode)
-          w$	    last line visible in current window (this is one
-      	    less than "w0" if no lines are visible)
-          v	    In Visual mode: the start of the Visual area (the
-      	    cursor is the end).  When not in Visual mode
-      	    returns the cursor position.  Differs from |'<| in
-      	    that it's updated right away.
-      Note that a mark in another file can be used.  The line number
-      then applies to another buffer.
+      See |getpos()| for accepted positions.
+
       To get the column number use |col()|.  To get both use
       |getpos()|.
+
       With the optional {winid} argument the values are obtained for
       that window instead of the current window.
+
       Returns 0 for invalid values of {expr} and {winid}.
+
       Examples: >vim
       	echo line(".")			" line number of the cursor
       	echo line(".", winid)		" idem, in window "winid"
@@ -6481,7 +6500,8 @@ M.funcs = {
       	echo printf("Operator-pending mode bit: 0x%x", op_bit)
     ]],
     name = 'maplist',
-    params = {},
+    params = { { 'abbr', '0|1' } },
+    returns = 'table[]',
     signature = 'maplist([{abbr}])',
   },
   mapnew = {
@@ -6793,19 +6813,19 @@ M.funcs = {
 
       Examples: >vim
           " Assuming line 3 in buffer 5 contains "a"
-          :echo matchbufline(5, '\<\k\+\>', 3, 3)
-          [{'lnum': 3, 'byteidx': 0, 'text': 'a'}]
+          echo matchbufline(5, '\<\k\+\>', 3, 3)
+      <    `[{'lnum': 3, 'byteidx': 0, 'text': 'a'}]` >vim
           " Assuming line 4 in buffer 10 contains "tik tok"
-          :echo matchbufline(10, '\<\k\+\>', 1, 4)
-          [{'lnum': 4, 'byteidx': 0, 'text': 'tik'}, {'lnum': 4, 'byteidx': 4, 'text': 'tok'}]
-      <
+          echo matchbufline(10, '\<\k\+\>', 1, 4)
+      <    `[{'lnum': 4, 'byteidx': 0, 'text': 'tik'}, {'lnum': 4, 'byteidx': 4, 'text': 'tok'}]`
+
       If {submatch} is present and is v:true, then submatches like
       "\1", "\2", etc. are also returned.  Example: >vim
           " Assuming line 2 in buffer 2 contains "acd"
-          :echo matchbufline(2, '\(a\)\?\(b\)\?\(c\)\?\(.*\)', 2, 2
+          echo matchbufline(2, '\(a\)\?\(b\)\?\(c\)\?\(.*\)', 2, 2
       				\ {'submatches': v:true})
-          [{'lnum': 2, 'byteidx': 0, 'text': 'acd', 'submatches': ['a', '', 'c', 'd', '', '', '', '', '']}]
-      <The "submatches" List always contains 9 items.  If a submatch
+      <    `[{'lnum': 2, 'byteidx': 0, 'text': 'acd', 'submatches': ['a', '', 'c', 'd', '', '', '', '', '']}]`
+      The "submatches" List always contains 9 items.  If a submatch
       is not found, then an empty string is returned for that
       submatch.
     ]=],
@@ -7025,17 +7045,17 @@ M.funcs = {
       option settings on the pattern.
 
       Example: >vim
-          :echo matchstrlist(['tik tok'], '\<\k\+\>')
-          [{'idx': 0, 'byteidx': 0, 'text': 'tik'}, {'idx': 0, 'byteidx': 4, 'text': 'tok'}]
-          :echo matchstrlist(['a', 'b'], '\<\k\+\>')
-          [{'idx': 0, 'byteidx': 0, 'text': 'a'}, {'idx': 1, 'byteidx': 0, 'text': 'b'}]
-      <
+          echo matchstrlist(['tik tok'], '\<\k\+\>')
+      <    `[{'idx': 0, 'byteidx': 0, 'text': 'tik'}, {'idx': 0, 'byteidx': 4, 'text': 'tok'}]` >vim
+          echo matchstrlist(['a', 'b'], '\<\k\+\>')
+      <    `[{'idx': 0, 'byteidx': 0, 'text': 'a'}, {'idx': 1, 'byteidx': 0, 'text': 'b'}]`
+
       If "submatches" is present and is v:true, then submatches like
       "\1", "\2", etc. are also returned.  Example: >vim
-          :echo matchstrlist(['acd'], '\(a\)\?\(b\)\?\(c\)\?\(.*\)',
+          echo matchstrlist(['acd'], '\(a\)\?\(b\)\?\(c\)\?\(.*\)',
       				\ #{submatches: v:true})
-          [{'idx': 0, 'byteidx': 0, 'text': 'acd', 'submatches': ['a', '', 'c', 'd', '', '', '', '', '']}]
-      <The "submatches" List always contains 9 items.  If a submatch
+      <    `[{'idx': 0, 'byteidx': 0, 'text': 'acd', 'submatches': ['a', '', 'c', 'd', '', '', '', '', '']}]`
+      The "submatches" List always contains 9 items.  If a submatch
       is not found, then an empty string is returned for that
       submatch.
     ]=],
@@ -7244,17 +7264,14 @@ M.funcs = {
       When {flags} is present it must be a string.  An empty string
       has no effect.
 
-      If {flags} contains "p" then intermediate directories are
-      created as necessary.
+      {flags} can contain these character flags:
+       "p"	intermediate directories will be created as necessary
+       "D"	{name} will be deleted at the end of the current
+      	function, but not recursively |:defer|
+       "R"	{name} will be deleted recursively at the end of the
+      	current function |:defer|
 
-      If {flags} contains "D" then {name} is deleted at the end of
-      the current function, as with: >vim
-      	defer delete({name}, 'd')
-      <
-      If {flags} contains "R" then {name} is deleted recursively at
-      the end of the current function, as with: >vim
-      	defer delete({name}, 'rf')
-      <Note that when {name} has more than one part and "p" is used
+      Note that when {name} has more than one part and "p" is used
       some directories may already exist.  Only the first one that
       is created and what it contains is scheduled to be deleted.
       E.g. when using: >vim
@@ -7427,12 +7444,7 @@ M.funcs = {
       	   C parser does not support such values.
       float	|Float|. This value cannot possibly appear in
       	|msgpackparse()| output.
-      string	|readfile()|-style list of strings. This value will
-      	appear in |msgpackparse()| output if string contains
-      	zero byte or if string is a mapping key and mapping is
-      	being represented as special dictionary for other
-      	reasons.
-      binary	|String|, or |Blob| if binary string contains zero
+      string	|String|, or |Blob| if binary string contains zero
       	byte. This value cannot appear in |msgpackparse()|
       	output since blobs were introduced.
       array	|List|. This value cannot appear in |msgpackparse()|
@@ -8715,7 +8727,7 @@ M.funcs = {
       the following mappings: >vim
       	nnoremap <expr> GG ":echom " .. screencol() .. "\n"
       	nnoremap <silent> GG :echom screencol()<CR>
-      	noremap GG <Cmd>echom screencol()<Cr>
+      	noremap GG <Cmd>echom screencol()<CR>
       <
     ]=],
     name = 'screencol',
@@ -9142,7 +9154,16 @@ M.funcs = {
       <
     ]=],
     name = 'searchpair',
-    params = {},
+    params = {
+      { 'start', 'any' },
+      { 'middle', 'any' },
+      { 'end', 'any' },
+      { 'flags', 'string' },
+      { 'skip', 'any' },
+      { 'stopline', 'any' },
+      { 'timeout', 'integer' },
+    },
+    returns = 'integer',
     signature = 'searchpair({start}, {middle}, {end} [, {flags} [, {skip} [, {stopline} [, {timeout}]]]])',
   },
   searchpairpos = {
@@ -9159,7 +9180,16 @@ M.funcs = {
       See |match-parens| for a bigger and more useful example.
     ]=],
     name = 'searchpairpos',
-    params = {},
+    params = {
+      { 'start', 'any' },
+      { 'middle', 'any' },
+      { 'end', 'any' },
+      { 'flags', 'string' },
+      { 'skip', 'any' },
+      { 'stopline', 'any' },
+      { 'timeout', 'integer' },
+    },
+    returns = '[integer, integer]',
     signature = 'searchpairpos({start}, {middle}, {end} [, {flags} [, {skip} [, {stopline} [, {timeout}]]]])',
   },
   searchpos = {
@@ -11672,7 +11702,7 @@ M.funcs = {
     ]=],
     name = 'synconcealed',
     params = { { 'lnum', 'integer' }, { 'col', 'integer' } },
-    returns = '{[1]: integer, [2]: string, [3]: integer}',
+    returns = '[integer, string, integer]',
     signature = 'synconcealed({lnum}, {col})',
   },
   synstack = {
@@ -12428,7 +12458,9 @@ M.funcs = {
       set to 8, it returns 8. |conceal| is ignored.
       For the byte position use |col()|.
 
-      For the use of {expr} see |col()|.
+      For the use of {expr} see |getpos()| and |col()|.
+      When {expr} is "$", it means the end of the cursor line, so
+      the result is the number of cells in the cursor line plus one.
 
       When 'virtualedit' is used {expr} can be [lnum, col, off],
       where "off" is the offset in screen columns from the start of
@@ -12437,18 +12469,6 @@ M.funcs = {
       Virtual editing is active in the current mode, a position
       beyond the end of the line can be returned.  Also see
       |'virtualedit'|
-
-      The accepted positions are:
-          .	    the cursor position
-          $	    the end of the cursor line (the result is the
-      	    number of displayed characters in the cursor line
-      	    plus one)
-          'x	    position of mark x (if the mark is not set, 0 is
-      	    returned)
-          v       In Visual mode: the start of the Visual area (the
-      	    cursor is the end).  When not in Visual mode
-      	    returns the cursor position.  Differs from |'<| in
-      	    that it's updated right away.
 
       If {list} is present and non-zero then virtcol() returns a
       List with the first and last screen position occupied by the
@@ -12468,7 +12488,9 @@ M.funcs = {
       	" With text "	  there", with 't at 'h':
 
       	echo virtcol("'t")	" returns 6
-      <The first column is 1.  0 or [0, 0] is returned for an error.
+      <
+      The first column is 1.  0 or [0, 0] is returned for an error.
+
       A more advanced example that echoes the maximum length of
       all lines: >vim
           echo max(map(range(1, line('$')), "virtcol([v:val, '$'])"))

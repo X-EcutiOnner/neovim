@@ -191,6 +191,7 @@ won't run if your server doesn't support them.
 - textDocument/prepareTypeHierarchy
 - textDocument/publishDiagnostics
 - textDocument/rangeFormatting
+- textDocument/rangesFormatting
 - textDocument/references
 - textDocument/rename
 - textDocument/semanticTokens/full
@@ -220,26 +221,26 @@ Each response handler has this signature: >
     function(err, result, ctx, config)
 <
     Parameters: ~
-        - {err}     (table|nil) Error info dict, or `nil` if the request
-                    completed.
-        - {result}  (Result | Params | nil) `result` key of the |lsp-response| or
-                    `nil` if the request failed.
-        - {ctx}     (table) Table of calling state associated with the
-                    handler, with these keys:
-                    - {method}  (string) |lsp-method| name.
-                    - {client_id} (number) |vim.lsp.Client| identifier.
-                    - {bufnr}   (Buffer) Buffer handle.
-                    - {params}  (table|nil) Request parameters table.
-                    - {version} (number) Document version at time of
-                                request. Handlers can compare this to the
-                                current document version to check if the
-                                response is "stale". See also |b:changedtick|.
-        - {config}  (table) Handler-defined configuration table, which allows
-                    users to customize handler behavior.
-                    For an example, see:
-                        |vim.lsp.diagnostic.on_publish_diagnostics()|
-                    To configure a particular |lsp-handler|, see:
-                        |lsp-handler-configuration|
+      • {err}     (`table|nil`) Error info dict, or `nil` if the request
+                  completed.
+      • {result}  (`Result|Params|nil`) `result` key of the |lsp-response| or
+                  `nil` if the request failed.
+      • {ctx}     (`table`) Table of calling state associated with the
+                  handler, with these keys:
+                  • {method}     (`string`) |lsp-method| name.
+                  • {client_id}  (`number`) |vim.lsp.Client| identifier.
+                  • {bufnr}      (`Buffer`) Buffer handle.
+                  • {params}     (`table|nil`) Request parameters table.
+                  • {version}    (`number`) Document version at time of
+                                 request. Handlers can compare this to the
+                                 current document version to check if the
+                                 response is "stale". See also |b:changedtick|.
+      • {config}  (`table`) Handler-defined configuration table, which allows
+                  users to customize handler behavior.
+                  For an example, see:
+                      |vim.lsp.diagnostic.on_publish_diagnostics()|
+                  To configure a particular |lsp-handler|, see:
+                      |lsp-handler-configuration|
 
     Returns: ~
         Two values `result, err` where `err` is shaped like an RPC error: >
@@ -514,10 +515,10 @@ LspAttach                                                          *LspAttach*
       callback = function(args)
         local bufnr = args.buf
         local client = vim.lsp.get_client_by_id(args.data.client_id)
-        if client.server_capabilities.completionProvider then
+        if client.supports_method("textDocument/completion") then
           vim.bo[bufnr].omnifunc = "v:lua.vim.lsp.omnifunc"
         end
-        if client.server_capabilities.definitionProvider then
+        if client.supports_method("textDocument/definition") then
           vim.bo[bufnr].tagfunc = "v:lua.vim.lsp.tagfunc"
         end
       end,
@@ -874,13 +875,13 @@ start({config}, {opts})                                      *vim.lsp.start()*
       • {config}  (`vim.lsp.ClientConfig`) Configuration for the server. See
                   |vim.lsp.ClientConfig|.
       • {opts}    (`table?`) Optional keyword arguments
-                  • {reuse_client}
+                  • {reuse_client}?
                     (`fun(client: vim.lsp.Client, config: vim.lsp.ClientConfig): boolean`)
                     Predicate used to decide if a client should be re-used.
                     Used on all running clients. The default implementation
                     re-uses a client if name and root_dir matches.
-                  • {bufnr} (`integer`) Buffer handle to attach to if starting
-                    or re-using a client (0 for current).
+                  • {bufnr}? (`integer`) Buffer handle to attach to if
+                    starting or re-using a client (0 for current).
                   • {silent}? (`boolean`) Suppress error reporting if the LSP
                     server fails to start (default false).
 
@@ -1371,11 +1372,14 @@ format({opts})                                          *vim.lsp.buf.format()*
                   (client.id) matching this field.
                 • {name}? (`string`) Restrict formatting to the client with
                   name (client.name) matching this field.
-                • {range}? (`{start:integer[],end:integer[]}`, default:
-                  current selection in visual mode, `nil` in other modes,
-                  formatting the full buffer) Range to format. Table must
-                  contain `start` and `end` keys with {row,col} tuples using
-                  (1,0) indexing.
+                • {range}?
+                  (`{start:[integer,integer],end:[integer, integer]}|{start:[integer,integer],end:[integer,integer]}[]`,
+                  default: current selection in visual mode, `nil` in other
+                  modes, formatting the full buffer) Range to format. Table
+                  must contain `start` and `end` keys with {row,col} tuples
+                  using (1,0) indexing. Can also be a list of tables that
+                  contain `start` and `end` keys as described above, in which
+                  case `textDocument/rangesFormatting` support is required.
 
 hover()                                                  *vim.lsp.buf.hover()*
     Displays hover information about the symbol under the cursor in a floating
@@ -1679,7 +1683,7 @@ is_enabled({filter})                         *vim.lsp.inlay_hint.is_enabled()*
     Query whether inlay hint is enabled in the {filter}ed scope
 
     Parameters: ~
-      • {filter}  (`table`) Optional filters |kwargs|, or `nil` for all.
+      • {filter}  (`table?`) Optional filters |kwargs|, or `nil` for all.
                   • {bufnr} (`integer?`) Buffer number, or 0 for current
                     buffer, or nil for all.
 
@@ -1983,7 +1987,9 @@ locations_to_items({locations}, {offset_encoding})
         (`table[]`) A list of objects with the following fields:
         • {filename} (`string`)
         • {lnum} (`integer`) 1-indexed line number
+        • {end_lnum} (`integer`) 1-indexed end line number
         • {col} (`integer`) 1-indexed column
+        • {end_col} (`integer`) 1-indexed end column
         • {text} (`string`)
         • {user_data} (`lsp.Location|lsp.LocationLink`)
 

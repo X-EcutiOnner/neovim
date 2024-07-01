@@ -47,6 +47,14 @@ EDITOR
 
 • The order in which signs are placed was changed. Higher priority signs will
   now appear left of lower priority signs.
+• |hl-CurSearch| now behaves the same as Vim and no longer updates on every
+  cursor movement.
+
+VIM SCRIPT
+
+• |v:msgpack_types| has the type "binary" removed. |msgpackparse()| no longer
+  treats BIN, STR and FIXSTR as separate types. Any of these is returned as a
+  string if possible, or a |blob| if the value contained embedded NUL:s.
 
 EVENTS
 
@@ -62,7 +70,10 @@ LUA
 
 OPTIONS
 
-• TODO
+• The 'statuscolumn' `%l` item can now be used as a number column segment that
+  changes according to related options. It takes care of alignment, 'number',
+  'relativenumber' and 'signcolumn' set to "number". The now redundant `%r` item
+  is no longer treated specially for 'statuscolumn'.
 
 PLUGINS
 
@@ -83,36 +94,42 @@ The following new features were added.
 
 API
 
-• TODO
+• |nvim__ns_set()| can set properties for a namespace
 
 DEFAULTS
 
-• Keymaps:
-  - |grn| in Normal mode maps to |vim.lsp.buf.rename()|
-  - |grr| in Normal mode maps to |vim.lsp.buf.references()|
-  - |gra| in Normal and Visual mode maps to |vim.lsp.buf.code_action()|
-  - CTRL-S in Insert mode maps to |vim.lsp.buf.signature_help()|
+• Mappings:
+  • |grn| in Normal mode maps to |vim.lsp.buf.rename()|
+  • |grr| in Normal mode maps to |vim.lsp.buf.references()|
+  • |gra| in Normal and Visual mode maps to |vim.lsp.buf.code_action()|
+  • CTRL-S in Insert mode maps to |vim.lsp.buf.signature_help()|
 
 • Snippet:
-  - `<Tab>` in Insert and Select mode maps to |vim.snippet.jump({ direction = 1 })|
+  • `<Tab>` in Insert and Select mode maps to `vim.snippet.jump({ direction = 1 })`
     when a snippet is active and jumpable forwards.
-  - `<S-Tab>` in Insert and Select mode maps to |vim.snippet.jump({ direction = -1 })|
+  • `<S-Tab>` in Insert and Select mode maps to `vim.snippet.jump({ direction = -1 })`
     when a snippet is active and jumpable backwards.
 
 EDITOR
 
-* On Windows, filename arguments on the command-line prefixed with "~\" or
+• On Windows, filename arguments on the command-line prefixed with "~\" or
   "~/" are now expanded to the user's profile directory, not a relative path
   to a literal "~" directory.
+• |hl-PmenuMatch| and |hl-PmenuMatchSel| show matched text in completion popup.
 
 EVENTS
 
-• TODO
+• |CompleteDone| now sets the `reason` key in `v:event` which specifies the reason
+  for completion being done.
 
 LSP
 
 • Completion side effects (including snippet expansion, execution of commands
   and application of additional text edits) is now built-in.
+• |vim.lsp.util.locations_to_items()| sets `end_col` and `end_lnum` fields.
+• |vim.lsp.buf.format()| now supports passing a list of ranges
+  via the `range` parameter (this requires support for the
+  `textDocument/rangesFormatting` request).
 
 LUA
 
@@ -120,7 +137,7 @@ LUA
 
 OPTIONS
 
-• TODO
+• 'completeopt' flag "fuzzy" enables |fuzzy-matching| during |ins-completion|.
 
 PERFORMANCE
 
@@ -128,7 +145,8 @@ PERFORMANCE
 
 PLUGINS
 
-• TODO
+• EditorConfig
+  • spelling_language property is now supported.
 
 STARTUP
 
@@ -136,7 +154,10 @@ STARTUP
 
 TERMINAL
 
-• TODO
+• The |terminal| now understands the OSC 52 escape sequence to write to the
+  system clipboard (copy). Querying with OSC 52 (paste) is not supported.
+• |hl-StatusLineTerm| and |hl-StatusLineTermNC| define highlights for the
+  status line in |terminal| windows.
 
 TREESITTER
 
@@ -149,10 +170,6 @@ TUI
 UI
 
 • TODO
-
-
-• |CompleteDone| now sets the `reason` key in `v:event` which specifies the reason
-  for completion being done.
 
 ==============================================================================
 CHANGED FEATURES                                                 *news-changed*

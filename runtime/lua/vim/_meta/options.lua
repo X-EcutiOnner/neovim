@@ -1061,6 +1061,10 @@ vim.bo.cfu = vim.bo.completefunc
 --- 	    completion in the preview window.  Only works in
 --- 	    combination with "menu" or "menuone".
 ---
+---    popup    Show extra information about the currently selected
+--- 	    completion in a popup window.  Only works in combination
+--- 	    with "menu" or "menuone".  Overrides "preview".
+---
 ---    noinsert Do not insert any text for a match until the user selects
 --- 	    a match from the menu. Only works in combination with
 --- 	    "menu" or "menuone". No effect if "longest" is present.
@@ -1069,13 +1073,19 @@ vim.bo.cfu = vim.bo.completefunc
 --- 	    select one from the menu. Only works in combination with
 --- 	    "menu" or "menuone".
 ---
----    popup    Show extra information about the currently selected
---- 	    completion in a popup window.  Only works in combination
---- 	    with "menu" or "menuone".  Overrides "preview".
+---    fuzzy    Enable `fuzzy-matching` for completion candidates. This
+--- 	    allows for more flexible and intuitive matching, where
+--- 	    characters can be skipped and matches can be found even
+--- 	    if the exact sequence is not typed.  Only makes a
+--- 	    difference how completion candidates are reduced from the
+--- 	    list of alternatives, but not how the candidates are
+--- 	    collected (using different completion types).
 ---
 --- @type string
 vim.o.completeopt = "menu,preview"
 vim.o.cot = vim.o.completeopt
+vim.bo.completeopt = vim.o.completeopt
+vim.bo.cot = vim.bo.completeopt
 vim.go.completeopt = vim.o.completeopt
 vim.go.cot = vim.go.completeopt
 
@@ -3541,8 +3551,11 @@ vim.go.js = vim.go.joinspaces
 --- 		|alternate-file` or using `mark-motions` try to
 --- 		restore the `mark-view` in which the action occurred.
 ---
+---   unload        Remove unloaded buffers from the jumplist.
+--- 		EXPERIMENTAL: this flag may change in the future.
+---
 --- @type string
-vim.o.jumpoptions = ""
+vim.o.jumpoptions = "unload"
 vim.o.jop = vim.o.jumpoptions
 vim.go.jumpoptions = vim.o.jumpoptions
 vim.go.jop = vim.go.jumpoptions
@@ -3819,6 +3832,9 @@ vim.go.lw = vim.go.lispwords
 --- non-breakable space characters as "+". Useful to see the difference
 --- between tabs and spaces and for trailing blanks. Further changed by
 --- the 'listchars' option.
+---
+--- When 'listchars' does not contain "tab" field, tabs are shown as "^I"
+--- or "<09>", like how unprintable characters are displayed.
 ---
 --- The cursor is displayed at the start of the space a Tab character
 --- occupies, not at the end as usual in Normal mode.  To get this cursor
@@ -6363,8 +6379,7 @@ vim.go.sol = vim.go.startofline
 --- Some of the items from the 'statusline' format are different for
 --- 'statuscolumn':
 ---
---- %l	line number of currently drawn line
---- %r	relative line number of currently drawn line
+--- %l	line number column for currently drawn line
 --- %s	sign column for currently drawn line
 --- %C	fold column for currently drawn line
 ---
@@ -6393,11 +6408,8 @@ vim.go.sol = vim.go.startofline
 --- Examples:
 ---
 --- ```vim
---- 	" Relative number with bar separator and click handlers:
---- 	set statuscolumn=%@SignCb@%s%=%T%@NumCb@%r│%T
----
---- 	" Right aligned relative cursor line number:
---- 	let &stc='%=%{v:relnum?v:relnum:v:lnum} '
+--- 	" Line number with bar separator and click handlers:
+--- 	set statuscolumn=%@SignCb@%s%=%T%@NumCb@%l│%T
 ---
 --- 	" Line numbers in hexadecimal for non wrapped part of lines:
 --- 	let &stc='%=%{v:virtnum>0?"":printf("%x",v:lnum)} '

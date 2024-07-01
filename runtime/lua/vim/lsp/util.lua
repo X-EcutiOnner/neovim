@@ -238,6 +238,7 @@ end
 ---@param rows integer[] zero-indexed line numbers
 ---@return table<integer, string>|string a table mapping rows to lines
 local function get_lines(bufnr, rows)
+  --- @type integer[]
   rows = type(rows) == 'table' and rows or { rows }
 
   -- This is needed for bufload and bufloaded
@@ -246,7 +247,7 @@ local function get_lines(bufnr, rows)
   end
 
   local function buf_lines()
-    local lines = {}
+    local lines = {} --- @type table<integer,string>
     for _, row in ipairs(rows) do
       lines[row] = (api.nvim_buf_get_lines(bufnr, row, row + 1, false) or { '' })[1]
     end
@@ -274,11 +275,11 @@ local function get_lines(bufnr, rows)
   if not fd then
     return ''
   end
-  local stat = uv.fs_fstat(fd)
-  local data = uv.fs_read(fd, stat.size, 0)
+  local stat = assert(uv.fs_fstat(fd))
+  local data = assert(uv.fs_read(fd, stat.size, 0))
   uv.fs_close(fd)
 
-  local lines = {} -- rows we need to retrieve
+  local lines = {} --- @type table<integer,true|string> rows we need to retrieve
   local need = 0 -- keep track of how many unique rows we need
   for _, row in pairs(rows) do
     if not lines[row] then
@@ -307,7 +308,7 @@ local function get_lines(bufnr, rows)
       lines[i] = ''
     end
   end
-  return lines
+  return lines --[[@as table<integer,string>]]
 end
 
 --- Gets the zero-indexed line from the given buffer.
@@ -322,7 +323,8 @@ local function get_line(bufnr, row)
 end
 
 --- Position is a https://microsoft.github.io/language-server-protocol/specifications/specification-current/#position
----@param offset_encoding string|nil utf-8|utf-16|utf-32
+---@param position lsp.Position
+---@param offset_encoding? string utf-8|utf-16|utf-32
 ---@return integer
 local function get_line_byte_from_position(bufnr, position, offset_encoding)
   -- LSP's line and characters are 0-indexed
@@ -366,6 +368,7 @@ function M.apply_text_edits(text_edits, bufnr, offset_encoding)
 
   -- Fix reversed range and indexing each text_edits
   local index = 0
+  --- @param text_edit lsp.TextEdit
   text_edits = vim.tbl_map(function(text_edit)
     index = index + 1
     text_edit._index = index
@@ -383,6 +386,9 @@ function M.apply_text_edits(text_edits, bufnr, offset_encoding)
   end, text_edits)
 
   -- Sort text_edits
+  ---@param a lsp.TextEdit | { _index: integer }
+  ---@param b lsp.TextEdit | { _index: integer }
+  ---@return boolean
   table.sort(text_edits, function(a, b)
     if a.range.start.line ~= b.range.start.line then
       return a.range.start.line > b.range.start.line
@@ -391,12 +397,13 @@ function M.apply_text_edits(text_edits, bufnr, offset_encoding)
       return a.range.start.character > b.range.start.character
     end
     if a._index ~= b._index then
-      return a._index > b._index
+      return a._index < b._index
     end
+    return false
   end)
 
   -- save and restore local marks since they get deleted by nvim_buf_set_lines
-  local marks = {}
+  local marks = {} --- @type table<string,[integer,integer]>
   for _, m in pairs(vim.fn.getmarklist(bufnr)) do
     if m.mark:match("^'[a-z]$") then
       marks[m.mark:sub(2, 2)] = { m.pos[2], m.pos[3] - 1 } -- api-indexed
@@ -509,7 +516,7 @@ function M.apply_text_document_edit(text_document_edit, index, offset_encoding)
     and (
       text_document.version
       and text_document.version > 0
-      and vim.b[bufnr].changedtick > text_document.version
+      and M.buf_versions[bufnr] > text_document.version
     )
   then
     print('Buffer ', text_document.uri, ' newer than edits.')
@@ -633,7 +640,7 @@ function M.rename(old_fname, new_fname, opts)
     -- Rename with :saveas. This does two things:
     -- * Unset BF_WRITE_MASK, so that users don't get E13 when they do :write.
     -- * Send didClose and didOpen via textDocument/didSave handler.
-    api.nvim_buf_call(b, function()
+    vim._with({ buf = b }, function()
       vim.cmd('keepalt saveas! ' .. vim.fn.fnameescape(rename.to))
     end)
     -- Delete the new buffer with the old name created by :saveas. nvim_buf_delete and
@@ -1007,7 +1014,7 @@ function M.show_document(location, offset_encoding, opts)
     local row = range.start.line
     local col = get_line_byte_from_position(bufnr, range.start, offset_encoding)
     api.nvim_win_set_cursor(win, { row + 1, col })
-    api.nvim_win_call(win, function()
+    vim._with({ win = win }, function()
       -- Open folds under the cursor
       vim.cmd('normal! zv')
     end)
@@ -1327,7 +1334,7 @@ function M.stylize_markdown(bufnr, contents, opts)
   end
 
   -- needs to run in the buffer for the regions to work
-  api.nvim_buf_call(bufnr, function()
+  vim._with({ buf = bufnr }, function()
     -- we need to apply lsp_markdown regions speperately, since otherwise
     -- markdown regions can "bleed" through the other syntax regions
     -- and mess up the formatting
@@ -1721,7 +1728,9 @@ end)
 ---@inlinedoc
 ---@field filename string
 ---@field lnum integer 1-indexed line number
+---@field end_lnum integer 1-indexed end line number
 ---@field col integer 1-indexed column
+---@field end_col integer 1-indexed end column
 ---@field text string
 ---@field user_data lsp.Location|lsp.LocationLink
 
@@ -1748,7 +1757,7 @@ function M.locations_to_items(locations, offset_encoding)
   end
 
   local items = {}
-  ---@type table<string, {start: lsp.Position, location: lsp.Location|lsp.LocationLink}[]>
+  ---@type table<string, {start: lsp.Position, end: lsp.Position, location: lsp.Location|lsp.LocationLink}[]>
   local grouped = setmetatable({}, {
     __index = function(t, k)
       local v = {}
@@ -1760,7 +1769,7 @@ function M.locations_to_items(locations, offset_encoding)
     -- locations may be Location or LocationLink
     local uri = d.uri or d.targetUri
     local range = d.range or d.targetSelectionRange
-    table.insert(grouped[uri], { start = range.start, location = d })
+    table.insert(grouped[uri], { start = range.start, ['end'] = range['end'], location = d })
   end
 
   ---@type string[]
@@ -1775,6 +1784,9 @@ function M.locations_to_items(locations, offset_encoding)
     local line_numbers = {}
     for _, temp in ipairs(rows) do
       table.insert(line_numbers, temp.start.line)
+      if temp.start.line ~= temp['end'].line then
+        table.insert(line_numbers, temp['end'].line)
+      end
     end
 
     -- get all the lines for this uri
@@ -1782,13 +1794,18 @@ function M.locations_to_items(locations, offset_encoding)
 
     for _, temp in ipairs(rows) do
       local pos = temp.start
+      local end_pos = temp['end']
       local row = pos.line
+      local end_row = end_pos.line
       local line = lines[row] or ''
       local col = M._str_byteindex_enc(line, pos.character, offset_encoding)
+      local end_col = M._str_byteindex_enc(lines[end_row] or '', end_pos.character, offset_encoding)
       table.insert(items, {
         filename = filename,
         lnum = row + 1,
+        end_lnum = end_row + 1,
         col = col + 1,
+        end_col = end_col + 1,
         text = line,
         user_data = temp.location,
       })
@@ -2201,16 +2218,14 @@ function M._refresh(method, opts)
   end
 end
 
+M._get_line_byte_from_position = get_line_byte_from_position
+
 ---@nodoc
----@deprecated
 ---@type table<integer,integer>
 M.buf_versions = setmetatable({}, {
-  __index = function(_, bufnr)
-    vim.deprecate('vim.lsp.util.buf_versions', 'vim.b.changedtick', '0.13')
-    return vim.b[bufnr].changedtick
+  __index = function(t, bufnr)
+    return rawget(t, bufnr) or 0
   end,
 })
-
-M._get_line_byte_from_position = get_line_byte_from_position
 
 return M

@@ -30,7 +30,7 @@ local buf_handles = {}
 --- @nodoc
 --- @class vim.lsp.completion.Context
 local Context = {
-  cursor = nil, --- @type { [1]: integer, [2]: integer }?
+  cursor = nil, --- @type [integer, integer]?
   last_request_time = nil, --- @type integer?
   pending_requests = {}, --- @type function[]
   isIncomplete = false,
@@ -145,8 +145,8 @@ local function get_completion_word(item)
       --    label: insert
       --
       -- Typing `i` would remove the candidate because newText starts with `t`.
-      local text = item.insertText or item.textEdit.newText
-      return #text < #item.label and text or item.label
+      local text = parse_snippet(item.insertText or item.textEdit.newText)
+      return #text < #item.label and vim.fn.matchstr(text, '\\k*') or item.label
     elseif item.insertText and item.insertText ~= '' then
       return parse_snippet(item.insertText)
     else
@@ -235,14 +235,20 @@ function M._lsp_to_complete_items(result, prefix, client_id)
     return {}
   end
 
-  local matches = prefix == '' and function()
-    return true
-  end or function(item)
-    if item.filterText then
-      return next(vim.fn.matchfuzzy({ item.filterText }, prefix))
+  ---@type fun(item: lsp.CompletionItem):boolean
+  local matches
+  if prefix == '' then
+    matches = function(_)
+      return true
     end
-    return true
+  else
+    ---@param item lsp.CompletionItem
+    matches = function(item)
+      local text = item.filterText or item.label
+      return next(vim.fn.matchfuzzy({ text }, prefix)) ~= nil
+    end
   end
+
   local candidates = {}
   for _, item in ipairs(items) do
     if matches(item) then

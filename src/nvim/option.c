@@ -236,11 +236,11 @@ static void set_init_default_backupskip(void)
           == NULL) {
         ga_grow(&ga, (int)len);
         if (!GA_EMPTY(&ga)) {
-          STRCAT(ga.ga_data, ",");
+          strcat(ga.ga_data, ",");
         }
-        STRCAT(ga.ga_data, p);
+        strcat(ga.ga_data, p);
         add_pathsep(ga.ga_data);
-        STRCAT(ga.ga_data, "*");
+        strcat(ga.ga_data, "*");
         ga.ga_len += (int)len;
       }
       xfree(item);
@@ -4570,6 +4570,8 @@ void *get_varp_scope_from(vimoption_T *p, int scope, buf_T *buf, win_T *win)
       return &(buf->b_p_def);
     case PV_INC:
       return &(buf->b_p_inc);
+    case PV_COT:
+      return &(buf->b_p_cot);
     case PV_DICT:
       return &(buf->b_p_dict);
     case PV_TSR:
@@ -4653,6 +4655,8 @@ void *get_varp_from(vimoption_T *p, buf_T *buf, win_T *win)
     return *buf->b_p_def != NUL ? &(buf->b_p_def) : p->var;
   case PV_INC:
     return *buf->b_p_inc != NUL ? &(buf->b_p_inc) : p->var;
+  case PV_COT:
+    return *buf->b_p_cot != NUL ? &(buf->b_p_cot) : p->var;
   case PV_DICT:
     return *buf->b_p_dict != NUL ? &(buf->b_p_dict) : p->var;
   case PV_TSR:
@@ -5332,6 +5336,8 @@ void buf_copy_options(buf_T *buf, int flags)
       buf->b_p_inc = empty_string_option;
       buf->b_p_inex = xstrdup(p_inex);
       COPY_OPT_SCTX(buf, BV_INEX);
+      buf->b_p_cot = empty_string_option;
+      buf->b_cot_flags = 0;
       buf->b_p_dict = empty_string_option;
       buf->b_p_tsr = empty_string_option;
       buf->b_p_tsrfu = empty_string_option;
@@ -6186,10 +6192,10 @@ bool can_bs(int what)
   return vim_strchr(p_bs, what) != NULL;
 }
 
-/// Get the local or global value of 'backupcopy'.
+/// Get the local or global value of 'backupcopy' flags.
 ///
 /// @param buf The buffer.
-unsigned get_bkc_value(buf_T *buf)
+unsigned get_bkc_flags(buf_T *buf)
 {
   return buf->b_bkc_flags ? buf->b_bkc_flags : bkc_flags;
 }
@@ -6205,7 +6211,7 @@ char *get_flp_value(buf_T *buf)
   return buf->b_p_flp;
 }
 
-/// Get the local or global value of the 'virtualedit' flags.
+/// Get the local or global value of 'virtualedit' flags.
 unsigned get_ve_flags(win_T *wp)
 {
   return (wp->w_ve_flags ? wp->w_ve_flags : ve_flags) & ~(VE_NONE | VE_NONEU);

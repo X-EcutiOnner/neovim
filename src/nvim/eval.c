@@ -331,7 +331,6 @@ static const char *const msgpack_type_names[] = {
   [kMPInteger] = "integer",
   [kMPFloat] = "float",
   [kMPString] = "string",
-  [kMPBinary] = "binary",
   [kMPArray] = "array",
   [kMPMap] = "map",
   [kMPExt] = "ext",
@@ -342,7 +341,6 @@ const list_T *eval_msgpack_type_lists[] = {
   [kMPInteger] = NULL,
   [kMPFloat] = NULL,
   [kMPString] = NULL,
-  [kMPBinary] = NULL,
   [kMPArray] = NULL,
   [kMPMap] = NULL,
   [kMPExt] = NULL,
@@ -7154,8 +7152,8 @@ static char *make_expanded_name(const char *in_start, char *expr_start, char *ex
     retval = xmalloc(strlen(temp_result) + (size_t)(expr_start - in_start)
                      + (size_t)(in_end - expr_end) + 1);
     STRCPY(retval, in_start);
-    STRCAT(retval, temp_result);
-    STRCAT(retval, expr_end + 1);
+    strcat(retval, temp_result);
+    strcat(retval, expr_end + 1);
   }
   xfree(temp_result);
 

@@ -255,7 +255,7 @@ describe('LSP', function()
         return
       end
       local expected_handlers = {
-        { NIL, {}, { method = 'shutdown', bufnr = 1, client_id = 1, version = 2 } },
+        { NIL, {}, { method = 'shutdown', bufnr = 1, client_id = 1, version = 0 } },
         { NIL, {}, { method = 'test', client_id = 1 } },
       }
       test_rpc_server {
@@ -371,7 +371,7 @@ describe('LSP', function()
               true,
               exec_lua [[
               local keymap
-              vim.api.nvim_buf_call(BUFFER, function()
+              vim._with({buf = BUFFER}, function()
                 keymap = vim.fn.maparg("K", "n", false, true)
               end)
               return keymap.callback == vim.lsp.buf.hover
@@ -388,7 +388,7 @@ describe('LSP', function()
             '',
             exec_lua [[
             local keymap
-            vim.api.nvim_buf_call(BUFFER, function()
+            vim._with({buf = BUFFER}, function()
               keymap = vim.fn.maparg("K", "n", false, false)
             end)
             return keymap
@@ -782,7 +782,7 @@ describe('LSP', function()
               vim.api.nvim_buf_set_name(BUFFER, oldname)
               vim.api.nvim_buf_set_lines(BUFFER, 0, -1, true, {"help me"})
               lsp.buf_attach_client(BUFFER, TEST_RPC_CLIENT_ID)
-              vim.api.nvim_buf_call(BUFFER, function() vim.cmd('saveas ' .. newname) end)
+              vim._with({buf = BUFFER}, function() vim.cmd('saveas ' .. newname) end)
             ]=],
               tmpfile_old,
               tmpfile_new
@@ -951,7 +951,7 @@ describe('LSP', function()
         {
           { code = -32801 },
           NIL,
-          { method = 'error_code_test', bufnr = 1, client_id = 1, version = 2 },
+          { method = 'error_code_test', bufnr = 1, client_id = 1, version = 0 },
         },
       }
       local client --- @type vim.lsp.Client
@@ -982,7 +982,7 @@ describe('LSP', function()
     it('should track pending requests to the language server', function()
       local expected_handlers = {
         { NIL, {}, { method = 'finish', client_id = 1 } },
-        { NIL, {}, { method = 'slow_request', bufnr = 1, client_id = 1, version = 2 } },
+        { NIL, {}, { method = 'slow_request', bufnr = 1, client_id = 1, version = 0 } },
       }
       local client --- @type vim.lsp.Client
       test_rpc_server {
@@ -1049,7 +1049,7 @@ describe('LSP', function()
     it('should clear pending and cancel requests on reply', function()
       local expected_handlers = {
         { NIL, {}, { method = 'finish', client_id = 1 } },
-        { NIL, {}, { method = 'slow_request', bufnr = 1, client_id = 1, version = 2 } },
+        { NIL, {}, { method = 'slow_request', bufnr = 1, client_id = 1, version = 0 } },
       }
       local client --- @type vim.lsp.Client
       test_rpc_server {
@@ -1088,7 +1088,7 @@ describe('LSP', function()
     it('should trigger LspRequest autocmd when requests table changes', function()
       local expected_handlers = {
         { NIL, {}, { method = 'finish', client_id = 1 } },
-        { NIL, {}, { method = 'slow_request', bufnr = 1, client_id = 1, version = 2 } },
+        { NIL, {}, { method = 'slow_request', bufnr = 1, client_id = 1, version = 0 } },
       }
       local client --- @type vim.lsp.Client
       test_rpc_server {
@@ -1368,7 +1368,7 @@ describe('LSP', function()
             },
             bufnr = 2,
             client_id = 1,
-            version = 2,
+            version = 0,
           },
         },
         { NIL, {}, { method = 'start', client_id = 1 } },
@@ -1794,9 +1794,9 @@ describe('LSP', function()
       }
       exec_lua('vim.lsp.util.apply_text_edits(...)', edits, 1, 'utf-16')
       eq({
-        '',
-        '123',
-        'fooFbar',
+        '3',
+        'foo',
+        '12Fbar',
         '123irst guy',
         'baz line of text',
         'The next line of text',
@@ -1818,9 +1818,9 @@ describe('LSP', function()
       }
       exec_lua('vim.lsp.util.apply_text_edits(...)', edits, 1, 'utf-16')
       eq({
-        '',
-        '123',
-        'fooFbar',
+        '3',
+        'foo',
+        '12Fbar',
         '123irst guy',
         'baz line of text',
         'The next line of text',
@@ -2122,6 +2122,7 @@ describe('LSP', function()
         local args = {...}
         local bufnr = select(1, ...)
         local text_edit = select(2, ...)
+        vim.lsp.util.buf_versions[bufnr] = 10
         vim.lsp.util.apply_text_document_edit(text_edit, nil, 'utf-16')
       ]],
         target_bufnr,
@@ -2138,6 +2139,7 @@ describe('LSP', function()
           [[
           local args = {...}
           local versionedBuf = args[2]
+          vim.lsp.util.buf_versions[versionedBuf.bufnr] = versionedBuf.currentVersion
           vim.lsp.util.apply_text_document_edit(args[1], nil, 'utf-16')
         ]],
           edit,
@@ -2242,6 +2244,18 @@ describe('LSP', function()
         }
 
         vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+
+        local update_changed_tick = function()
+          vim.lsp.util.buf_versions[bufnr] = vim.api.nvim_buf_get_var(bufnr, 'changedtick')
+        end
+
+        update_changed_tick()
+        vim.api.nvim_buf_attach(bufnr, false, {
+          on_changedtick = function()
+            update_changed_tick()
+          end
+        })
+
         return {bufnr, vim.api.nvim_buf_get_var(bufnr, 'changedtick')}
       ]]
 
@@ -2681,13 +2695,15 @@ describe('LSP', function()
         {
           filename = '/fake/uri',
           lnum = 1,
+          end_lnum = 2,
           col = 3,
+          end_col = 4,
           text = 'testing',
           user_data = {
             uri = 'file:///fake/uri',
             range = {
               start = { line = 0, character = 2 },
-              ['end'] = { line = 0, character = 3 },
+              ['end'] = { line = 1, character = 3 },
             },
           },
         },
@@ -2701,7 +2717,7 @@ describe('LSP', function()
             uri = 'file:///fake/uri',
             range = {
               start = { line = 0, character = 2 },
-              ['end'] = { line = 0, character = 3 },
+              ['end'] = { line = 1, character = 3 },
             }
           },
         }
@@ -2714,7 +2730,9 @@ describe('LSP', function()
         {
           filename = '/fake/uri',
           lnum = 1,
+          end_lnum = 1,
           col = 3,
+          end_col = 4,
           text = 'testing',
           user_data = {
             targetUri = 'file:///fake/uri',
@@ -4509,6 +4527,86 @@ describe('LSP', function()
                 notify_msg = msg
               end
               vim.lsp.buf.format({ bufnr = bufnr })
+              vim.notify = notify
+              return notify_msg
+            ]])
+            eq(NIL, notify_msg)
+          elseif ctx.method == 'shutdown' then
+            client.stop()
+          end
+        end,
+      }
+    end)
+    it('Sends textDocument/rangeFormatting request to format a range', function()
+      local expected_handlers = {
+        { NIL, {}, { method = 'shutdown', client_id = 1 } },
+        { NIL, {}, { method = 'start', client_id = 1 } },
+      }
+      local client
+      test_rpc_server {
+        test_name = 'range_formatting',
+        on_init = function(c)
+          client = c
+        end,
+        on_handler = function(_, _, ctx)
+          table.remove(expected_handlers)
+          if ctx.method == 'start' then
+            local notify_msg = exec_lua([[
+              local bufnr = vim.api.nvim_get_current_buf()
+              vim.api.nvim_buf_set_lines(bufnr, 0, -1, true, {'foo', 'bar'})
+              vim.lsp.buf_attach_client(bufnr, TEST_RPC_CLIENT_ID)
+              local notify_msg
+              local notify = vim.notify
+              vim.notify = function(msg, log_level)
+                notify_msg = msg
+              end
+              vim.lsp.buf.format({ bufnr = bufnr, range = {
+                start = {1, 1},
+                ['end'] = {1, 1},
+              }})
+              vim.notify = notify
+              return notify_msg
+            ]])
+            eq(NIL, notify_msg)
+          elseif ctx.method == 'shutdown' then
+            client.stop()
+          end
+        end,
+      }
+    end)
+    it('Sends textDocument/rangesFormatting request to format multiple ranges', function()
+      local expected_handlers = {
+        { NIL, {}, { method = 'shutdown', client_id = 1 } },
+        { NIL, {}, { method = 'start', client_id = 1 } },
+      }
+      local client
+      test_rpc_server {
+        test_name = 'ranges_formatting',
+        on_init = function(c)
+          client = c
+        end,
+        on_handler = function(_, _, ctx)
+          table.remove(expected_handlers)
+          if ctx.method == 'start' then
+            local notify_msg = exec_lua([[
+              local bufnr = vim.api.nvim_get_current_buf()
+              vim.api.nvim_buf_set_lines(bufnr, 0, -1, true, {'foo', 'bar', 'baz'})
+              vim.lsp.buf_attach_client(bufnr, TEST_RPC_CLIENT_ID)
+              local notify_msg
+              local notify = vim.notify
+              vim.notify = function(msg, log_level)
+                notify_msg = msg
+              end
+              vim.lsp.buf.format({ bufnr = bufnr, range = {
+                {
+                  start = {1, 1},
+                  ['end'] = {1, 1},
+                },
+                {
+                  start = {2, 2},
+                  ['end'] = {2, 2},
+                }
+              }})
               vim.notify = notify
               return notify_msg
             ]])

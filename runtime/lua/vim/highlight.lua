@@ -31,8 +31,6 @@ M.priorities = {
 --- Indicates priority of highlight
 --- (default: `vim.highlight.priorities.user`)
 --- @field priority? integer
----
---- @field package _scoped? boolean
 
 --- Apply highlight group to range of text.
 ---
@@ -47,12 +45,23 @@ function M.range(bufnr, ns, higroup, start, finish, opts)
   local regtype = opts.regtype or 'v'
   local inclusive = opts.inclusive or false
   local priority = opts.priority or M.priorities.user
-  local scoped = opts._scoped or false
+
+  local v_maxcol = vim.v.maxcol
 
   local pos1 = type(start) == 'string' and vim.fn.getpos(start)
-    or { bufnr, start[1] + 1, start[2] + 1, 0 }
+    or {
+      bufnr,
+      start[1] + 1,
+      start[2] ~= -1 and start[2] ~= v_maxcol and start[2] + 1 or v_maxcol,
+      0,
+    }
   local pos2 = type(finish) == 'string' and vim.fn.getpos(finish)
-    or { bufnr, finish[1] + 1, finish[2] + 1, 0 }
+    or {
+      bufnr,
+      finish[1] + 1,
+      finish[2] ~= -1 and start[2] ~= v_maxcol and finish[2] + 1 or v_maxcol,
+      0,
+    }
 
   local buf_line_count = vim.api.nvim_buf_line_count(bufnr)
   pos1[2] = math.min(pos1[2], buf_line_count)
@@ -62,11 +71,15 @@ function M.range(bufnr, ns, higroup, start, finish, opts)
     return
   end
 
-  vim.api.nvim_buf_call(bufnr, function()
-    local max_col1 = vim.fn.col({ pos1[2], '$' })
-    pos1[3] = math.min(pos1[3], max_col1)
-    local max_col2 = vim.fn.col({ pos2[2], '$' })
-    pos2[3] = math.min(pos2[3], max_col2)
+  vim._with({ buf = bufnr }, function()
+    if pos1[3] ~= v_maxcol then
+      local max_col1 = vim.fn.col({ pos1[2], '$' })
+      pos1[3] = math.min(pos1[3], max_col1)
+    end
+    if pos2[3] ~= v_maxcol then
+      local max_col2 = vim.fn.col({ pos2[2], '$' })
+      pos2[3] = math.min(pos2[3], max_col2)
+    end
   end)
 
   local region = vim.fn.getregionpos(pos1, pos2, {
@@ -77,6 +90,14 @@ function M.range(bufnr, ns, higroup, start, finish, opts)
   -- For non-blockwise selection, use a single extmark.
   if regtype == 'v' or regtype == 'V' then
     region = { { region[1][1], region[#region][2] } }
+    if
+      regtype == 'V'
+      or region[1][2][2] == pos1[2] and pos1[3] == v_maxcol
+      or region[1][2][2] == pos2[2] and pos2[3] == v_maxcol
+    then
+      region[1][2][2] = region[1][2][2] + 1
+      region[1][2][3] = 0
+    end
   end
 
   for _, res in ipairs(region) do
@@ -84,17 +105,12 @@ function M.range(bufnr, ns, higroup, start, finish, opts)
     local start_col = res[1][3] - 1
     local end_row = res[2][2] - 1
     local end_col = res[2][3]
-    if regtype == 'V' then
-      end_row = end_row + 1
-      end_col = 0
-    end
     api.nvim_buf_set_extmark(bufnr, ns, start_row, start_col, {
       hl_group = higroup,
       end_row = end_row,
       end_col = end_col,
       priority = priority,
       strict = false,
-      scoped = scoped,
     })
   end
 end
@@ -158,19 +174,18 @@ function M.on_yank(opts)
     yank_cancel()
   end
 
-  vim.api.nvim__win_add_ns(winid, yank_ns)
+  vim.api.nvim__ns_set(yank_ns, { wins = { winid } })
   M.range(bufnr, yank_ns, higroup, "'[", "']", {
     regtype = event.regtype,
     inclusive = event.inclusive,
     priority = opts.priority or M.priorities.user,
-    _scoped = true,
   })
 
   yank_cancel = function()
     yank_timer = nil
     yank_cancel = nil
     pcall(vim.api.nvim_buf_clear_namespace, bufnr, yank_ns, 0, -1)
-    pcall(vim.api.nvim__win_del_ns, winid, yank_ns)
+    pcall(vim.api.nvim__ns_set, { wins = {} })
   end
 
   yank_timer = vim.defer_fn(yank_cancel, timeout)

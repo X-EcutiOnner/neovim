@@ -257,7 +257,7 @@ end
 function Session:restore_keymaps()
   local function restore(keymap, lhs, mode)
     if keymap then
-      vim.api.nvim_buf_call(self.bufnr, function()
+      vim._with({ buf = self.bufnr }, function()
         vim.fn.mapset(keymap)
       end)
     else
@@ -609,7 +609,7 @@ end
 --- ```lua
 --- vim.keymap.set({ 'i', 's' }, '<Tab>', function()
 ---    if vim.snippet.active({ direction = 1 }) then
----      return '<cmd>lua vim.snippet.jump(1)<cr>'
+---      return '<Cmd>lua vim.snippet.jump(1)<CR>'
 ---    else
 ---      return '<Tab>'
 ---    end
@@ -661,7 +661,7 @@ end
 --- ```lua
 --- vim.keymap.set({ 'i', 's' }, '<Tab>', function()
 ---    if vim.snippet.active({ direction = 1 }) then
----      return '<cmd>lua vim.snippet.jump(1)<cr>'
+---      return '<Cmd>lua vim.snippet.jump(1)<CR>'
 ---    else
 ---      return '<Tab>'
 ---    end

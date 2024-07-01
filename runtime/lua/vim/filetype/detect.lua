@@ -450,7 +450,7 @@ local function modula2(bufnr)
 
   return 'modula2',
     function(b)
-      vim.api.nvim_buf_call(b, function()
+      vim._with({ buf = b }, function()
         fn['modula2#SetDialect'](dialect, extension)
       end)
     end
@@ -469,6 +469,41 @@ function M.def(_, bufnr)
     return vim.g.filetype_def
   end
   return 'def'
+end
+
+--- @type vim.filetype.mapfn
+function M.dsp(path, bufnr)
+  if vim.g.filetype_dsp then
+    return vim.g.filetype_dsp
+  end
+
+  -- Test the filename
+  local file_name = fn.fnamemodify(path, ':t')
+  if file_name:find('^[mM]akefile.*$') then
+    return 'make'
+  end
+
+  -- Test the file contents
+  for _, line in ipairs(getlines(bufnr, 1, 200)) do
+    if
+      findany(line, {
+        -- Check for comment style
+        [[#.*]],
+        -- Check for common lines
+        [[^.*Microsoft Developer Studio Project File.*$]],
+        [[^!MESSAGE This is not a valid makefile\..+$]],
+        -- Check for keywords
+        [[^!(IF,ELSEIF,ENDIF).*$]],
+        -- Check for common assignments
+        [[^SOURCE=.*$]],
+      })
+    then
+      return 'make'
+    end
+  end
+
+  -- Otherwise, assume we have a Faust file
+  return 'faust'
 end
 
 --- @type vim.filetype.mapfn
@@ -594,7 +629,7 @@ function M.frm(_, bufnr)
 end
 
 --- @type vim.filetype.mapfn
-function M.fvwm_1(_, _)
+function M.fvwm_v1(_, _)
   return 'fvwm', function(bufnr)
     vim.b[bufnr].fvwm_version = 1
   end
@@ -676,10 +711,15 @@ end
 
 --- @type vim.filetype.mapfn
 function M.html(_, bufnr)
-  for _, line in ipairs(getlines(bufnr, 1, 10)) do
+  for _, line in ipairs(getlines(bufnr, 1, 40)) do
     if matchregex(line, [[\<DTD\s\+XHTML\s]]) then
       return 'xhtml'
-    elseif matchregex(line, [[\c{%\s*\(extends\|block\|load\)\>\|{#\s\+]]) then
+    elseif
+      matchregex(
+        line,
+        [[\c{%\s*\(autoescape\|block\|comment\|csrf_token\|cycle\|debug\|extends\|filter\|firstof\|for\|if\|ifchanged\|include\|load\|lorem\|now\|query_string\|regroup\|resetcycle\|spaceless\|templatetag\|url\|verbatim\|widthratio\|with\)\>\|{#\s\+]]
+      )
+    then
       return 'htmldjango'
     end
   end
@@ -1355,7 +1395,7 @@ end
 function M.sgml(_, bufnr)
   local lines = table.concat(getlines(bufnr, 1, 5))
   if lines:find('linuxdoc') then
-    return 'smgllnx'
+    return 'sgmllnx'
   elseif lines:find('<!DOCTYPE.*DocBook') then
     return 'docbk',
       function(b)
@@ -1783,6 +1823,7 @@ local patterns_hashbang = {
   ['^janet\\>'] = { 'janet', { vim_regex = true } },
   ['^dart\\>'] = { 'dart', { vim_regex = true } },
   ['^execlineb\\>'] = { 'execline', { vim_regex = true } },
+  ['^vim\\>'] = { 'vim', { vim_regex = true } },
 }
 
 ---@private

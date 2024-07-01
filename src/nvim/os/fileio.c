@@ -21,8 +21,6 @@
 #include "nvim/os/fileio.h"
 #include "nvim/os/fs.h"
 #include "nvim/os/os_defs.h"
-#include "nvim/rbuffer.h"
-#include "nvim/rbuffer_defs.h"
 #include "nvim/types_defs.h"
 
 #ifdef HAVE_SYS_UIO_H
@@ -300,7 +298,7 @@ ptrdiff_t file_read(FileDescriptor *const fp, char *const ret_buf, const size_t 
     } else {
       fp->write_pos += r_ret;
       size_t to_copy = MIN((size_t)r_ret, read_remaining);
-      memcpy(ret_buf, fp->read_pos, to_copy);
+      memcpy(buf, fp->read_pos, to_copy);
       fp->read_pos += to_copy;
       read_remaining -= to_copy;
     }
@@ -322,9 +320,8 @@ ptrdiff_t file_write(FileDescriptor *const fp, const char *const buf, const size
   FUNC_ATTR_WARN_UNUSED_RESULT FUNC_ATTR_NONNULL_ARG(1)
 {
   assert(fp->wr);
-  ptrdiff_t space = (fp->buffer + ARENA_BLOCK_SIZE) - fp->write_pos;
   // includes the trivial case of size==0
-  if (size < (size_t)space) {
+  if (size < file_space(fp)) {
     memcpy(fp->write_pos, buf, size);
     fp->write_pos += size;
     return (ptrdiff_t)size;

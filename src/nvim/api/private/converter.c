@@ -7,7 +7,9 @@
 #include "nvim/api/private/converter.h"
 #include "nvim/api/private/defs.h"
 #include "nvim/api/private/helpers.h"
+#include "nvim/ascii_defs.h"
 #include "nvim/assert_defs.h"
+#include "nvim/eval/decode.h"
 #include "nvim/eval/typval.h"
 #include "nvim/eval/typval_defs.h"
 #include "nvim/eval/userfunc.h"
@@ -28,6 +30,7 @@ typedef struct {
 #endif
 
 #define TYPVAL_ENCODE_ALLOW_SPECIALS false
+#define TYPVAL_ENCODE_CHECK_BEFORE
 
 #define TYPVAL_ENCODE_CONV_NIL(tv) \
   kvi_push(edata->stack, NIL)
@@ -217,6 +220,7 @@ static inline void typval_encode_dict_end(EncodedData *const edata)
 #undef TYPVAL_ENCODE_CONV_LIST_START
 #undef TYPVAL_ENCODE_CONV_REAL_LIST_AFTER_START
 #undef TYPVAL_ENCODE_CONV_EMPTY_DICT
+#undef TYPVAL_ENCODE_CHECK_BEFORE
 #undef TYPVAL_ENCODE_CONV_NIL
 #undef TYPVAL_ENCODE_CONV_BOOL
 #undef TYPVAL_ENCODE_CONV_UNSIGNED_NUMBER
@@ -300,15 +304,11 @@ void object_to_vim_take_luaref(Object *obj, typval_T *tv, bool take_luaref, Erro
     tv->vval.v_float = obj->data.floating;
     break;
 
-  case kObjectTypeString:
-    tv->v_type = VAR_STRING;
-    if (obj->data.string.data == NULL) {
-      tv->vval.v_string = NULL;
-    } else {
-      tv->vval.v_string = xmemdupz(obj->data.string.data,
-                                   obj->data.string.size);
-    }
+  case kObjectTypeString: {
+    String s = obj->data.string;
+    *tv = decode_string(s.data, s.size, false, false);
     break;
+  }
 
   case kObjectTypeArray: {
     list_T *const list = tv_list_alloc((ptrdiff_t)obj->data.array.size);

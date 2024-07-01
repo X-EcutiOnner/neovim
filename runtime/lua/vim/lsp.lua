@@ -56,6 +56,7 @@ lsp._request_name_to_capability = {
   [ms.workspace_symbol] = { 'workspaceSymbolProvider' },
   [ms.textDocument_references] = { 'referencesProvider' },
   [ms.textDocument_rangeFormatting] = { 'documentRangeFormattingProvider' },
+  [ms.textDocument_rangesFormatting] = { 'documentRangeFormattingProvider', 'rangesSupport' },
   [ms.textDocument_formatting] = { 'documentFormattingProvider' },
   [ms.textDocument_completion] = { 'completionProvider' },
   [ms.textDocument_documentHighlight] = { 'documentHighlightProvider' },
@@ -201,10 +202,10 @@ end
 --- Predicate used to decide if a client should be re-used. Used on all
 --- running clients. The default implementation re-uses a client if name and
 --- root_dir matches.
---- @field reuse_client fun(client: vim.lsp.Client, config: vim.lsp.ClientConfig): boolean
+--- @field reuse_client? fun(client: vim.lsp.Client, config: vim.lsp.ClientConfig): boolean
 ---
 --- Buffer handle to attach to if starting or re-using a client (0 for current).
---- @field bufnr integer
+--- @field bufnr? integer
 ---
 --- Suppress error reporting if the LSP server fails to start (default false).
 --- @field silent? boolean
@@ -351,7 +352,7 @@ function lsp._set_defaults(client, bufnr)
   then
     vim.bo[bufnr].formatexpr = 'v:lua.vim.lsp.formatexpr()'
   end
-  api.nvim_buf_call(bufnr, function()
+  vim._with({ buf = bufnr }, function()
     if
       client.supports_method(ms.textDocument_hover)
       and is_empty_or_default(bufnr, 'keywordprg')
@@ -377,9 +378,9 @@ local function reset_defaults(bufnr)
   if vim.bo[bufnr].formatexpr == 'v:lua.vim.lsp.formatexpr()' then
     vim.bo[bufnr].formatexpr = nil
   end
-  api.nvim_buf_call(bufnr, function()
+  vim._with({ buf = bufnr }, function()
     local keymap = vim.fn.maparg('K', 'n', false, true)
-    if keymap and keymap.callback == vim.lsp.buf.hover then
+    if keymap and keymap.callback == vim.lsp.buf.hover and keymap.buffer == 1 then
       vim.keymap.del('n', 'K', { buffer = bufnr })
     end
   end)
@@ -393,7 +394,7 @@ local function on_client_exit(code, signal, client_id)
 
   vim.schedule(function()
     for bufnr in pairs(client.attached_buffers) do
-      if client and client.attached_buffers[bufnr] then
+      if client and client.attached_buffers[bufnr] and api.nvim_buf_is_valid(bufnr) then
         api.nvim_exec_autocmds('LspDetach', {
           buffer = bufnr,
           modeline = false,
@@ -484,6 +485,7 @@ local function text_document_did_save_handler(bufnr)
           text = lsp._buf_get_full_text(bufnr),
         },
       })
+      util.buf_versions[bufnr] = 0
     end
     local save_capability = vim.tbl_get(client.server_capabilities, 'textDocumentSync', 'save')
     if save_capability then
@@ -574,11 +576,12 @@ local function buf_attach(bufnr)
   })
   -- First time, so attach and set up stuff.
   api.nvim_buf_attach(bufnr, false, {
-    on_lines = function(_, _, _, firstline, lastline, new_lastline)
+    on_lines = function(_, _, changedtick, firstline, lastline, new_lastline)
       if #lsp.get_clients({ bufnr = bufnr }) == 0 then
         -- detach if there are no clients
         return #lsp.get_clients({ bufnr = bufnr, _uninitialized = true }) == 0
       end
+      util.buf_versions[bufnr] = changedtick
       changetracking.send_changes(bufnr, firstline, lastline, new_lastline)
     end,
 
@@ -602,6 +605,7 @@ local function buf_attach(bufnr)
         buf_detach_client(bufnr, client)
       end
       attached_buffers[bufnr] = nil
+      util.buf_versions[bufnr] = nil
     end,
 
     -- TODO if we know all of the potential clients ahead of time, then we

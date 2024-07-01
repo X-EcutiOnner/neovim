@@ -25,7 +25,7 @@
 --- @field variables table<string,any>
 --- @field windows integer[]
 
---- @alias vim.fn.getjumplist.ret {[1]: vim.fn.getjumplist.ret.item[], [2]: integer}
+--- @alias vim.fn.getjumplist.ret [vim.fn.getjumplist.ret.item[], integer]
 
 --- @class vim.fn.getjumplist.ret.item
 --- @field bufnr integer
@@ -33,6 +33,11 @@
 --- @field coladd integer
 --- @field filename? string
 --- @field lnum integer
+
+--- @class vim.fn.getmarklist.ret.item
+--- @field mark string
+--- @field pos [integer, integer, integer, integer]
+--- @field file string
 
 --- @class vim.fn.getmousepos.ret
 --- @field screenrow integer

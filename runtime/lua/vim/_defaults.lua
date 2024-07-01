@@ -85,13 +85,13 @@ do
   vim.keymap.set(
     'x',
     'Q',
-    "mode() == 'V' ? ':normal! @<C-R>=reg_recorded()<CR><CR>' : 'Q'",
+    "mode() ==# 'V' ? ':normal! @<C-R>=reg_recorded()<CR><CR>' : 'Q'",
     { silent = true, expr = true, desc = ':help v_Q-default' }
   )
   vim.keymap.set(
     'x',
     '@',
-    "mode() == 'V' ? ':normal! @'.getcharstr().'<CR>' : '@'",
+    "mode() ==# 'V' ? ':normal! @'.getcharstr().'<CR>' : '@'",
     { silent = true, expr = true, desc = ':help v_@-default' }
   )
 
@@ -279,6 +279,26 @@ do
         local data = string.format('\027]%d;rgb:%04x/%04x/%04x\007', command, red, green, blue)
         vim.api.nvim_chan_send(channel, data)
       end
+    end,
+  })
+
+  vim.api.nvim_create_autocmd('TermOpen', {
+    group = nvim_terminal_augroup,
+    desc = 'Default settings for :terminal buffers',
+    callback = function()
+      vim.bo.modifiable = false
+      vim.bo.undolevels = -1
+      vim.bo.scrollback = vim.o.scrollback < 0 and 10000 or math.max(1, vim.o.scrollback)
+      vim.bo.textwidth = 0
+      vim.wo[0][0].wrap = false
+      vim.wo[0][0].list = false
+
+      -- This is gross. Proper list options support when?
+      local winhl = vim.o.winhighlight
+      if winhl ~= '' then
+        winhl = winhl .. ','
+      end
+      vim.wo[0][0].winhighlight = winhl .. 'StatusLine:StatusLineTerm,StatusLineNC:StatusLineTermNC'
     end,
   })
 
@@ -470,10 +490,14 @@ do
     --- response indicates that it does support truecolor enable 'termguicolors',
     --- but only if the user has not already disabled it.
     do
-      if tty.rgb then
-        -- The TUI was able to determine truecolor support
+      local colorterm = os.getenv('COLORTERM')
+      if tty.rgb or colorterm == 'truecolor' or colorterm == '24bit' then
+        -- The TUI was able to determine truecolor support or $COLORTERM explicitly indicates
+        -- truecolor support
         setoption('termguicolors', true)
-      else
+      elseif colorterm == nil or colorterm == '' then
+        -- Neither the TUI nor $COLORTERM indicate that truecolor is supported, so query the
+        -- terminal
         local caps = {} ---@type table<string, boolean>
         require('vim.termcap').query({ 'Tc', 'RGB', 'setrgbf', 'setrgbb' }, function(cap, found)
           if not found then

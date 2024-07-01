@@ -471,7 +471,7 @@ function tests.basic_check_buffer_open()
           languageId = '',
           text = table.concat({ 'testing', '123' }, '\n') .. '\n',
           uri = 'file://',
-          version = 2,
+          version = 0,
         },
       })
       expect_notification('finish')
@@ -498,7 +498,7 @@ function tests.basic_check_buffer_open_and_change()
           languageId = '',
           text = table.concat({ 'testing', '123' }, '\n') .. '\n',
           uri = 'file://',
-          version = 2,
+          version = 0,
         },
       })
       expect_notification('textDocument/didChange', {
@@ -534,7 +534,7 @@ function tests.basic_check_buffer_open_and_change_noeol()
           languageId = '',
           text = table.concat({ 'testing', '123' }, '\n'),
           uri = 'file://',
-          version = 2,
+          version = 0,
         },
       })
       expect_notification('textDocument/didChange', {
@@ -569,7 +569,7 @@ function tests.basic_check_buffer_open_and_change_multi()
           languageId = '',
           text = table.concat({ 'testing', '123' }, '\n') .. '\n',
           uri = 'file://',
-          version = 2,
+          version = 0,
         },
       })
       expect_notification('textDocument/didChange', {
@@ -614,7 +614,7 @@ function tests.basic_check_buffer_open_and_change_multi_and_close()
           languageId = '',
           text = table.concat({ 'testing', '123' }, '\n') .. '\n',
           uri = 'file://',
-          version = 2,
+          version = 0,
         },
       })
       expect_notification('textDocument/didChange', {
@@ -672,7 +672,7 @@ function tests.basic_check_buffer_open_and_change_incremental()
           languageId = '',
           text = table.concat({ 'testing', '123' }, '\n') .. '\n',
           uri = 'file://',
-          version = 2,
+          version = 0,
         },
       })
       expect_notification('textDocument/didChange', {
@@ -715,7 +715,7 @@ function tests.basic_check_buffer_open_and_change_incremental_editing()
           languageId = '',
           text = table.concat({ 'testing', '123' }, '\n'),
           uri = 'file://',
-          version = 2,
+          version = 0,
         },
       })
       expect_notification('textDocument/didChange', {
@@ -932,6 +932,48 @@ function tests.basic_formatting()
     body = function()
       notify('start')
       expect_request('textDocument/formatting', function()
+        return nil, {}
+      end)
+      notify('shutdown')
+    end,
+  }
+end
+
+function tests.range_formatting()
+  skeleton {
+    on_init = function()
+      return {
+        capabilities = {
+          documentFormattingProvider = true,
+          documentRangeFormattingProvider = true,
+        },
+      }
+    end,
+    body = function()
+      notify('start')
+      expect_request('textDocument/rangeFormatting', function()
+        return nil, {}
+      end)
+      notify('shutdown')
+    end,
+  }
+end
+
+function tests.ranges_formatting()
+  skeleton {
+    on_init = function()
+      return {
+        capabilities = {
+          documentFormattingProvider = true,
+          documentRangeFormattingProvider = {
+            rangesSupport = true,
+          },
+        },
+      }
+    end,
+    body = function()
+      notify('start')
+      expect_request('textDocument/rangesFormatting', function()
         return nil, {}
       end)
       notify('shutdown')

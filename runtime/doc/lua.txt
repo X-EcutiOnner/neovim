@@ -834,8 +834,8 @@ vim.spell.check({str})                                     *vim.spell.check()*
       • {str}  (`string`)
 
     Return: ~
-        (`{[1]: string, [2]: 'bad'|'rare'|'local'|'caps', [3]: integer}[]`)
-        List of tuples with three items:
+        (`[string, 'bad'|'rare'|'local'|'caps', integer][]`) List of tuples
+        with three items:
         • The badly spelled word.
         • The type of the spelling error: "bad" spelling mistake "rare" rare
           word "local" word only valid in another region "caps" word should
@@ -980,6 +980,9 @@ vim.str_byteindex({str}, {index}, {use_utf16})           *vim.str_byteindex()*
       • {str}        (`string`)
       • {index}      (`integer`)
       • {use_utf16}  (`boolean?`)
+
+    Return: ~
+        (`integer`)
 
 vim.str_utf_end({str}, {index})                            *vim.str_utf_end()*
     Gets the distance (in bytes) from the last byte of the codepoint
@@ -4079,10 +4082,10 @@ Iter:map({f})                                                     *Iter:map()*
 <
 
     Parameters: ~
-      • {f}  (`fun(...):any`) Mapping function. Takes all values returned from
-             the previous stage in the pipeline as arguments and returns one
-             or more new values, which are used in the next pipeline stage.
-             Nil return values are filtered from the output.
+      • {f}  (`fun(...):...:any`) Mapping function. Takes all values returned
+             from the previous stage in the pipeline as arguments and returns
+             one or more new values, which are used in the next pipeline
+             stage. Nil return values are filtered from the output.
 
     Return: ~
         (`Iter`)
@@ -4327,7 +4330,7 @@ vim.snippet.active({filter})                            *vim.snippet.active()*
     You can use this function to navigate a snippet as follows: >lua
         vim.keymap.set({ 'i', 's' }, '<Tab>', function()
            if vim.snippet.active({ direction = 1 }) then
-             return '<cmd>lua vim.snippet.jump(1)<cr>'
+             return '<Cmd>lua vim.snippet.jump(1)<CR>'
            else
              return '<Tab>'
            end
@@ -4361,7 +4364,7 @@ vim.snippet.jump({direction})                             *vim.snippet.jump()*
     For example, map `<Tab>` to jump while a snippet is active: >lua
         vim.keymap.set({ 'i', 's' }, '<Tab>', function()
            if vim.snippet.active({ direction = 1 }) then
-             return '<cmd>lua vim.snippet.jump(1)<cr>'
+             return '<Cmd>lua vim.snippet.jump(1)<CR>'
            else
              return '<Tab>'
            end
@@ -4385,8 +4388,9 @@ vim.text.hexdecode({enc})                               *vim.text.hexdecode()*
     Parameters: ~
       • {enc}  (`string`) String to decode
 
-    Return: ~
-        (`string`) Decoded string
+    Return (multiple): ~
+        (`string?`) Decoded string
+        (`string?`) Error message, if any
 
 vim.text.hexencode({str})                               *vim.text.hexencode()*
     Hex encode a string.

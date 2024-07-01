@@ -6,6 +6,11 @@
 /// something else. For these macros to work the following macros must be
 /// defined:
 
+/// @def TYPVAL_ENCODE_CHECK_BEFORE
+/// @brief Macro used before any specific CONV function
+///
+/// can be used for a common check, like flushing a buffer if necessary
+
 /// @def TYPVAL_ENCODE_CONV_NIL
 /// @brief Macros used to convert NIL value
 ///
@@ -323,6 +328,7 @@ static int TYPVAL_ENCODE_CONVERT_ONE_VALUE(
                                            TYPVAL_ENCODE_FIRST_ARG_TYPE TYPVAL_ENCODE_FIRST_ARG_NAME, MPConvStack *const mpstack,
                                            MPConvStackVal *const cur_mpsv, typval_T *const tv, const int copyID, const char *const objname)
 {
+  TYPVAL_ENCODE_CHECK_BEFORE;
   switch (tv->v_type) {
   case VAR_STRING:
     TYPVAL_ENCODE_CONV_STRING(tv, tv->vval.v_string, tv_strlen(tv));
@@ -420,6 +426,7 @@ static int TYPVAL_ENCODE_CONVERT_ONE_VALUE(
           break;
         }
       }
+      TYPVAL_ENCODE_CHECK_BEFORE;
       if (i == ARRAY_SIZE(eval_msgpack_type_lists)) {
         goto _convert_one_value_regular_dict;
       }
@@ -494,9 +501,7 @@ static int TYPVAL_ENCODE_CONVERT_ONE_VALUE(
         }
         TYPVAL_ENCODE_CONV_FLOAT(tv, val_di->di_tv.vval.v_float);
         break;
-      case kMPString:
-      case kMPBinary: {
-        const bool is_string = ((MessagePackType)i == kMPString);
+      case kMPString: {
         if (val_di->di_tv.v_type != VAR_LIST) {
           goto _convert_one_value_regular_dict;
         }
@@ -506,11 +511,7 @@ static int TYPVAL_ENCODE_CONVERT_ONE_VALUE(
                                     &buf)) {
           goto _convert_one_value_regular_dict;
         }
-        if (is_string) {
-          TYPVAL_ENCODE_CONV_STR_STRING(tv, buf, len);
-        } else {
-          TYPVAL_ENCODE_CONV_STRING(tv, buf, len);
-        }
+        TYPVAL_ENCODE_CONV_STR_STRING(tv, buf, len);
         xfree(buf);
         break;
       }

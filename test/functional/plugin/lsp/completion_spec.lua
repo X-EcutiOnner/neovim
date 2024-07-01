@@ -81,9 +81,20 @@ describe('vim.lsp.completion: item conversion', function()
       -- plain text
       {
         label = 'foocar',
-        sortText = 'k',
+        sortText = 'g',
         insertText = 'foodar(${1:var1})',
         insertTextFormat = 1,
+      },
+      {
+        label = '•INT16_C(c)',
+        insertText = 'INT16_C(${1:c})',
+        insertTextFormat = 2,
+        filterText = 'INT16_C',
+        sortText = 'h',
+        textEdit = {
+          newText = 'INT16_C(${1:c})',
+          range = range0,
+        },
       },
     }
     local expected = {
@@ -115,8 +126,33 @@ describe('vim.lsp.completion: item conversion', function()
         abbr = 'foocar',
         word = 'foodar(${1:var1})', -- marked as PlainText, text is used as is
       },
+      {
+        abbr = '•INT16_C(c)',
+        word = 'INT16_C',
+      },
     }
     local result = complete('|', completion_list)
+    result = vim.tbl_map(function(x)
+      return {
+        abbr = x.abbr,
+        word = x.word,
+      }
+    end, result.items)
+    eq(expected, result)
+  end)
+
+  it('filters on label if filterText is missing', function()
+    local completion_list = {
+      { label = 'foo' },
+      { label = 'bar' },
+    }
+    local result = complete('fo|', completion_list)
+    local expected = {
+      {
+        abbr = 'foo',
+        word = 'foo',
+      },
+    }
     result = vim.tbl_map(function(x)
       return {
         abbr = x.abbr,
@@ -443,7 +479,7 @@ describe('vim.lsp.completion: protocol', function()
     end)
   end
 
-  --- @param pos { [1]: integer, [2]: integer }
+  --- @param pos [integer, integer]
   local function trigger_at_pos(pos)
     exec_lua(
       [[
