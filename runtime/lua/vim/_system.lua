@@ -79,22 +79,19 @@ function SystemObj:_timeout(signal)
   self:kill(signal or SIG.TERM)
 end
 
--- Use max 32-bit signed int value to avoid overflow on 32-bit systems. #31633
-local MAX_TIMEOUT = 2 ^ 31 - 1
-
 --- @param timeout? integer
 --- @return vim.SystemCompleted
 function SystemObj:wait(timeout)
   local state = self._state
 
-  local done = vim.wait(timeout or state.timeout or MAX_TIMEOUT, function()
+  local done = vim.wait(timeout or state.timeout or vim._maxint, function()
     return state.result ~= nil
   end, nil, true)
 
   if not done then
     -- Send sigkill since this cannot be caught
     self:_timeout(SIG.KILL)
-    vim.wait(timeout or state.timeout or MAX_TIMEOUT, function()
+    vim.wait(timeout or state.timeout or vim._maxint, function()
       return state.result ~= nil
     end, nil, true)
   end
@@ -211,12 +208,15 @@ end
 --- @param clear_env? boolean
 --- @return string[]?
 local function setup_env(env, clear_env)
-  if clear_env then
-    return env
+  if not env and clear_env then
+    return
   end
 
-  --- @type table<string,string|number>
-  env = vim.tbl_extend('force', base_env(), env or {})
+  env = env or {}
+  if not clear_env then
+    --- @type table<string,string|number>
+    env = vim.tbl_extend('force', base_env(), env)
+  end
 
   local renv = {} --- @type string[]
   for k, v in pairs(env) do

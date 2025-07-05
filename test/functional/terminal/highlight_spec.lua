@@ -3,6 +3,7 @@ local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 local tt = require('test.functional.testterm')
 
+local assert_alive = n.assert_alive
 local feed, clear = n.feed, n.clear
 local api = n.api
 local testprg, command = n.testprg, n.command
@@ -398,12 +399,30 @@ describe(':terminal', function()
       [100] = { url = 'https://example.com' },
     }
     local chan = api.nvim_open_term(0, {})
-    api.nvim_chan_send(chan, '\027]8;;https://example.com\027\\Example\027]8;;\027\\')
-    screen:expect({
-      grid = [[
-        {100:^Example}                                           |
-                                                          |*6
-      ]],
-    })
+    api.nvim_chan_send(
+      chan,
+      'This is an \027]8;;https://example.com\027\\example\027]8;;\027\\ of a link'
+    )
+    screen:expect([[
+      ^This is an {100:example} of a link                      |
+                                                        |*6
+    ]])
+  end)
+
+  it('zoomout with large horizontal output #30374', function()
+    skip(is_os('win'))
+
+    -- Start terminal smaller.
+    local screen = Screen.new(50, 50, { rgb = false })
+    feed([[:terminal<cr>]])
+
+    -- Generate very wide output.
+    feed('ifor i in $(seq 1 10000); do echo -n $i; done\r\n')
+
+    -- Make terminal big.
+    screen:try_resize(5000, 5000)
+    command('call jobresize(b:terminal_job_id, 5000, 5000)')
+
+    assert_alive()
   end)
 end)

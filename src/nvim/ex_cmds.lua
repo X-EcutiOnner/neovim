@@ -752,7 +752,7 @@ M.cmds = {
   },
   {
     command = 'diffget',
-    flags = bit.bor(RANGE, EXTRA, TRLBAR, MODIFY),
+    flags = bit.bor(RANGE, ZEROR, EXTRA, TRLBAR, MODIFY),
     addr_type = 'ADDR_LINES',
     func = 'ex_diffgetput',
   },
@@ -770,7 +770,7 @@ M.cmds = {
   },
   {
     command = 'diffput',
-    flags = bit.bor(RANGE, EXTRA, TRLBAR),
+    flags = bit.bor(RANGE, ZEROR, EXTRA, TRLBAR),
     addr_type = 'ADDR_LINES',
     func = 'ex_diffgetput',
   },
@@ -1052,7 +1052,7 @@ M.cmds = {
   },
   {
     command = 'fclose',
-    flags = bit.bor(BANG, RANGE),
+    flags = bit.bor(BANG, RANGE, TRLBAR),
     addr_type = 'ADDR_OTHER',
     func = 'ex_fclose',
   },
@@ -2184,13 +2184,13 @@ M.cmds = {
     command = 'quitall',
     flags = bit.bor(BANG, TRLBAR),
     addr_type = 'ADDR_NONE',
-    func = 'ex_quit_all',
+    func = 'ex_quitall_or_restart',
   },
   {
     command = 'qall',
     flags = bit.bor(BANG, TRLBAR, CMDWIN, LOCK_OK),
     addr_type = 'ADDR_NONE',
-    func = 'ex_quit_all',
+    func = 'ex_quitall_or_restart',
   },
   {
     command = 'read',
@@ -2250,7 +2250,7 @@ M.cmds = {
     command = 'restart',
     flags = bit.bor(BANG, TRLBAR),
     addr_type = 'ADDR_NONE',
-    func = 'ex_restart',
+    func = 'ex_quitall_or_restart',
   },
   {
     command = 'retab',
@@ -3016,6 +3016,12 @@ M.cmds = {
     flags = bit.bor(RANGE, COUNT, TRLBAR),
     addr_type = 'ADDR_OTHER',
     func = 'ex_buffer_all',
+  },
+  {
+    command = 'uniq',
+    flags = bit.bor(RANGE, DFLALL, WHOLEFOLD, BANG, EXTRA, NOTRLCOM, MODIFY),
+    addr_type = 'ADDR_LINES',
+    func = 'ex_uniq',
   },
   {
     command = 'unlet',

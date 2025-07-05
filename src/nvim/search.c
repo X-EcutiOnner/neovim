@@ -2681,6 +2681,7 @@ static void cmdline_search_stat(int dirc, pos_T *pos, pos_T *cursor_pos, bool sh
 
   // keep the message even after redraw, but don't put in history
   msg_hist_off = true;
+  msg_ext_overwrite = true;
   msg_ext_set_kind("search_count");
   give_warning(msgbuf, false);
   msg_hist_off = false;
@@ -3021,6 +3022,11 @@ static int fuzzy_match_compute_score(const char *const fuzpat, const char *const
   // Apply unmatched penalty
   const int unmatched = strSz - numMatches;
   score += UNMATCHED_LETTER_PENALTY * unmatched;
+  // In a long string, not all matches may be found due to the recursion limit.
+  // If at least one match is found, reset the score to a non-negative value.
+  if (score < 0 && numMatches > 0) {
+    score = 0;
+  }
 
   // Apply ordering bonuses
   for (int i = 0; i < numMatches; i++) {

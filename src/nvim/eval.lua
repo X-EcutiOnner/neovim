@@ -1495,8 +1495,8 @@ M.funcs = {
         or empty string if no match was found or when using the
         default 'iskeyword' pattern.
 
-      When 'isexpand' is empty, uses the 'iskeyword' pattern
-      "\k\+$" to find the start of the current keyword.
+      When 'isexpand' is empty, uses the 'iskeyword' pattern "\k\+$"
+      to find the start of the current keyword.
 
       Examples: >vim
         set isexpand=.,->,/,/*,abc
@@ -2413,7 +2413,7 @@ M.funcs = {
       	<abuf>		autocmd buffer number (as a String!)
       	<amatch>	autocmd matched name
       	<cexpr>		C expression under the cursor
-      	<sfile>		sourced script file or function name
+      	<sfile>		deprecated, use <script> or <stack>
       	<slnum>		sourced script line number or function
       			line number
       	<sflnum>	script file line number, also when in
@@ -2421,7 +2421,8 @@ M.funcs = {
       	<SID>		"<SNR>123_"  where "123" is the
       			current script ID  |<SID>|
       	<script>	sourced script file, or script file
-      			where the current function was defined
+      			where the current function was defined.
+      			Use |debug.getinfo()| in Lua scripts.
       	<stack>		call stack
       	<cword>		word under the cursor
       	<cWORD>		WORD under the cursor
@@ -3511,7 +3512,7 @@ M.funcs = {
       Examples: >vim
       	let bufmodified = getbufvar(1, "&mod")
       	echo "todo myvar = " .. getbufvar("todo", "myvar")
-
+      <
     ]=],
     name = 'getbufvar',
     params = { { 'buf', 'integer|string' }, { 'varname', 'string' }, { 'def', 'any' } },
@@ -3970,6 +3971,7 @@ M.funcs = {
     ]=],
     name = 'getcurpos',
     params = { { 'winid', 'integer' } },
+    returns = '[integer, integer, integer, integer, integer]',
     signature = 'getcurpos([{winid}])',
   },
   getcursorcharpos = {
@@ -4313,6 +4315,7 @@ M.funcs = {
     ]=],
     name = 'getmatches',
     params = { { 'win', 'integer' } },
+    returns = 'vim.fn.getmatches.ret.item[]',
     signature = 'getmatches([{win}])',
   },
   getmousepos = {
@@ -4428,7 +4431,7 @@ M.funcs = {
     ]=],
     name = 'getpos',
     params = { { 'expr', 'string' } },
-    returns = 'integer[]',
+    returns = '[integer, integer, integer, integer]',
     signature = 'getpos({expr})',
   },
   getqflist = {
@@ -4569,7 +4572,7 @@ M.funcs = {
 
     ]=],
     name = 'getreg',
-    params = { { 'regname', 'string' }, { 'list', 'nil|false' } },
+    params = { { 'regname', 'string' }, { 'expr', 'any' }, { 'list', 'nil|false' } },
     signature = 'getreg([{regname} [, 1 [, {list}]]])',
     returns = 'string',
   },
@@ -4577,8 +4580,8 @@ M.funcs = {
     args = { 3 },
     base = 1,
     name = 'getreg',
-    params = { { 'regname', 'string' }, { 'list', 'true|number|string|table' } },
-    returns = 'string|string[]',
+    params = { { 'regname', 'string' }, { 'expr', 'any' }, { 'list', 'true|number|string|table' } },
+    returns = 'string[]',
   },
   getreginfo = {
     args = { 0, 1 },
@@ -4672,7 +4675,11 @@ M.funcs = {
       <
     ]=],
     name = 'getregion',
-    params = { { 'pos1', 'table' }, { 'pos2', 'table' }, { 'opts', 'table' } },
+    params = {
+      { 'pos1', '[integer, integer, integer, integer]' },
+      { 'pos2', '[integer, integer, integer, integer]' },
+      { 'opts', '{type?:string, exclusive?:boolean}' },
+    },
     returns = 'string[]',
     signature = 'getregion({pos1}, {pos2} [, {opts}])',
   },
@@ -4712,8 +4719,12 @@ M.funcs = {
       			(default: |FALSE|)
     ]=],
     name = 'getregionpos',
-    params = { { 'pos1', 'table' }, { 'pos2', 'table' }, { 'opts', 'table' } },
-    returns = 'integer[][][]',
+    params = {
+      { 'pos1', '[integer, integer, integer, integer]' },
+      { 'pos2', '[integer, integer, integer, integer]' },
+      { 'opts', '{type?:string, exclusive?:boolean, eol?:boolean}' },
+    },
+    returns = '[ [integer, integer, integer, integer], [integer, integer, integer, integer] ][]',
     signature = 'getregionpos({pos1}, {pos2} [, {opts}])',
   },
   getregtype = {
@@ -5037,7 +5048,7 @@ M.funcs = {
       Examples: >vim
       	let list_is_on = getwinvar(2, '&list')
       	echo "myvar = " .. getwinvar(1, 'myvar')
-
+      <
     ]=],
     name = 'getwinvar',
     params = { { 'winnr', 'integer' }, { 'varname', 'string' }, { 'def', 'any' } },
@@ -5811,7 +5822,7 @@ M.funcs = {
       Example: >vim
       	let color = inputlist(['Select color:', '1. red',
       		\ '2. green', '3. blue'])
-
+      <
     ]=],
     name = 'inputlist',
     params = { { 'textlist', 'string[]' } },
@@ -6390,7 +6401,7 @@ M.funcs = {
       object code must be compiled as position-independent ('PIC').
       Examples: >vim
       	echo libcall("libc.so", "getenv", "HOME")
-
+      <
     ]=],
     name = 'libcall',
     params = { { 'libname', 'string' }, { 'funcname', 'string' }, { 'argument', 'any' } },
@@ -8322,6 +8333,21 @@ M.funcs = {
     signature = 'printf({fmt}, {expr1} ...)',
     returns = 'string',
   },
+  prompt_getinput = {
+    args = 1,
+    base = 1,
+    desc = [=[
+      Gets the current user-input in |prompt-buffer| {buf} without invoking
+      prompt_callback. {buf} can be a buffer name or number.
+
+      If the buffer doesn't exist or isn't a prompt buffer, an empty
+      string is returned.
+
+    ]=],
+    name = 'prompt_getinput',
+    params = { { 'buf', 'integer|string' } },
+    signature = 'prompt_getinput({buf})',
+  },
   prompt_getprompt = {
     args = 1,
     base = 1,
@@ -8648,6 +8674,7 @@ M.funcs = {
     ]=],
     name = 'readfile',
     params = { { 'fname', 'string' }, { 'type', 'string' }, { 'max', 'integer' } },
+    returns = 'string[]',
     signature = 'readfile({fname} [, {type} [, {max}]])',
   },
   reduce = {
@@ -9998,7 +10025,7 @@ M.funcs = {
 
     ]=],
     name = 'setmatches',
-    params = { { 'list', 'any' }, { 'win', 'integer' } },
+    params = { { 'list', 'vim.fn.getmatches.ret.item[]' }, { 'win', 'integer' } },
     signature = 'setmatches({list} [, {win}])',
   },
   setpos = {
@@ -10245,7 +10272,7 @@ M.funcs = {
       You can also change the type of a register by appending
       nothing: >vim
       	call setreg('a', '', 'al')
-
+      <
     ]=],
     name = 'setreg',
     params = { { 'regname', 'string' }, { 'value', 'any' }, { 'options', 'string' } },
@@ -10345,7 +10372,7 @@ M.funcs = {
       Examples: >vim
       	call setwinvar(1, "&list", 0)
       	call setwinvar(2, "myvar", "foobar")
-
+      <
     ]=],
     name = 'setwinvar',
     params = { { 'nr', 'integer' }, { 'varname', 'string' }, { 'val', 'any' } },
@@ -10850,7 +10877,7 @@ M.funcs = {
 
       	" Remove all the placed signs from all the buffers
       	call sign_unplace('*')
-
+      <
     ]=],
     name = 'sign_unplace',
     params = { { 'group', 'string' }, { 'dict', 'vim.fn.sign_unplace.dict' } },
@@ -11561,7 +11588,7 @@ M.funcs = {
         echo strftime("%H:%M")		   " 11:55
         echo strftime("%c", getftime("file.c"))
       				   " Show mod time of file.c.
-
+      <
     ]=],
     name = 'strftime',
     params = { { 'format', 'string' }, { 'time', 'number' } },
@@ -11950,6 +11977,7 @@ M.funcs = {
       	let &directory = '.'
       	let swapfiles = swapfilelist()
       	let &directory = save_dir
+      <
     ]=],
     name = 'swapfilelist',
     params = {},
@@ -12807,6 +12835,7 @@ M.funcs = {
       	let newlist = uniq(copy(mylist))
       <The default compare function uses the string representation of
       each item.  For the use of {func} and {dict} see |sort()|.
+      For deduplicating text in the current buffer see |:uniq|.
 
       Returns zero if {list} is not a |List|.
 
@@ -12924,6 +12953,7 @@ M.funcs = {
     ]=],
     name = 'virtcol',
     params = { { 'expr', 'string|any[]' }, { 'list', 'boolean' }, { 'winid', 'integer' } },
+    returns = 'integer|[integer, integer]',
     signature = 'virtcol({expr} [, {list} [, {winid}]])',
   },
   virtcol2col = {

@@ -18,13 +18,18 @@ BREAKING CHANGES IN HEAD OR EXPERIMENTAL                    *news-breaking-dev*
 The following changes to UNRELEASED features were made during the development
 cycle (Nvim HEAD, the "master" branch).
 
+EVENTS
+
+• Renamed "nvim.find_exrc" |default-autocmds| group to "nvim.exrc".
+
 EXPERIMENTS
 
 • todo
 
 LSP
 
-• todo
+• |vim.lsp.buf.selection_range()| now accepts an integer which specifies its
+  direction, rather than a string `'outer'` or `'inner'`.
 
 OPTIONS
 
@@ -62,7 +67,12 @@ EDITOR
 
 EVENTS
 
-• todo
+• |ui-messages| no longer emits the `msg_show.return_prompt`, and
+  `msg_history_clear` events. The `msg_clear` event was repurposed and is now
+  emitted after the screen is cleared. These events arbitrarily assumed a
+  message UI that mimicks the legacy message grid. Benefit: reduced UI event
+  traffic and more flexibility for UIs.
+• A new `empty` message kind is emitted for an empty (e.g. `:echo ""`) message.
 
 HIGHLIGHTS
 
@@ -88,7 +98,11 @@ PLUGINS
 
 TREESITTER
 
-• todo
+• |treesitter-directive-offset!| can now be applied to quantified captures. It
+  no longer sets `metadata[capture_id].range`; it instead sets
+  `metadata[capture_id].offset`. The offset will be applied in
+  |vim.treesitter.get_range()|, which should be preferred over reading
+  metadata directly for retrieving node ranges.
 
 TUI
 
@@ -127,6 +141,8 @@ DEFAULTS
   was implemented as an internal C routine).
 • Project-local configuration ('exrc') is also loaded from parent directories.
   Unset 'exrc' to stop further search.
+• Mappings:
+  • |grt| in Normal mode maps to |vim.lsp.buf.type_definition()|
 
 DIAGNOSTICS
 
@@ -139,9 +155,14 @@ DIAGNOSTICS
 EDITOR
 
 • |:iput| works like |:put| but adjusts indent.
+• |:uniq| deduplicates text in the current buffer.
 • |omnicompletion| in `help` buffer. |ft-help-omni|
 • Setting "'0" in 'shada' prevents storing the jumplist in the shada file.
 • 'shada' now correctly respects "/0" and "f0".
+• |prompt-buffer| supports multiline input/paste, undo/redo, and o/O normal
+  commands.
+• 'wildchar' now enables completion in search contexts using |/|, |?|, |:g|, |:v|
+   and |:vimgrep| commands.
 
 EVENTS
 
@@ -165,12 +186,26 @@ LSP
   non-applicable LSP clients.
 • |vim.lsp.is_enabled()| checks if a LSP config is enabled (without
   "resolving" it).
+• Support for `workspace/diagnostic`: |vim.lsp.buf.workspace_diagnostics()|
+  https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_dagnostics
+• Incremental selection is now supported via `textDocument/selectionRange`.
+  `an` selects outwards and `in` selects inwards.
+• Support for multiline semantic tokens.
+• Support for the `disabled` field on code actions.
+• The function form of `cmd` in a vim.lsp.Config or vim.lsp.ClientConfig
+  receives the resolved config as the second arg: `cmd(dispatchers, config)`.
+• Support for annotated text edits.
 
 LUA
 
 • Lua type annotations for `vim.uv`.
 • |vim.hl.range()| now allows multiple timed highlights.
 • |vim.tbl_extend()| and |vim.tbl_deep_extend()| now accept a function behavior argument.
+• |vim.fs.root()| can define "equal priority" via nested lists.
+• |vim.version.range()| output can be converted to human-readable string with |tostring()|.
+• |vim.version.intersect()| computes intersection of two version ranges.
+• |Iter:take()| and |Iter:skip()| now optionally accept predicates.
+• Built-in plugin manager |vim.pack|
 
 OPTIONS
 
@@ -218,10 +253,11 @@ TREESITTER
 
 TUI
 
-• todo
+• |TermResponse| now supports APC query responses.
 
 UI
 
+• |:restart| restarts Nvim and reattaches the current UI.
 • |:checkhealth| shows a summary in the header for every healthcheck.
 • |ui-multigrid| provides composition information and absolute coordinates.
 • `vim._extui` provides an experimental commandline and message UI intended to
@@ -229,17 +265,18 @@ UI
 • Error messages are more concise:
   • "Error detected while processing:" changed to "Error in:".
   • "Error executing Lua:" changed to "Lua:".
-• |:restart| detaches the embedded server from the UI and then restarts it.
 
 VIMSCRIPT
 
 • |cmdcomplete_info()| gets current cmdline completion info.
+• |prompt_getinput()| gets current user-input in prompt-buffer.
 
 ==============================================================================
 CHANGED FEATURES                                                 *news-changed*
 
 These existing features changed their behavior.
 
+• |gv| works in operator pending mode and does not abort.
 • 'smartcase' applies to completion filtering.
 • 'spellfile' location defaults to `stdpath("data").."/site/spell/"` instead of
   the first writable directory in 'runtimepath'.

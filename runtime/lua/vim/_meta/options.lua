@@ -655,8 +655,8 @@ vim.bo.bl = vim.bo.buflisted
 --- "acwrite" implies that the buffer name is not related to a file, like
 --- "nofile", but it will be written.  Thus, in contrast to "nofile" and
 --- "nowrite", ":w" does work and a modified buffer can't be abandoned
---- without saving.  For writing there must be matching `BufWriteCmd|,
---- |FileWriteCmd` or `FileAppendCmd` autocommands.
+--- without saving.  For writing there must be matching `BufWriteCmd`,
+--- `FileWriteCmd` or `FileAppendCmd` autocommands.
 ---
 --- @type ''|'acwrite'|'help'|'nofile'|'nowrite'|'quickfix'|'terminal'|'prompt'
 vim.o.buftype = ""
@@ -1033,15 +1033,12 @@ vim.bo.cms = vim.bo.commentstring
 --- 	name of a function or a `Funcref`.  For `Funcref` values,
 --- 	spaces must be escaped with a backslash ('\'), and commas with
 --- 	double backslashes ('\\') (see `option-backslash`).
+--- 	Unlike other sources, functions can provide completions starting
+--- 	from a non-keyword character before the cursor, and their
+--- 	start position for replacing text may differ from other sources.
 --- 	If the Dict returned by the {func} includes {"refresh": "always"},
 --- 	the function will be invoked again whenever the leading text
 --- 	changes.
---- 	Completion matches are always inserted at the keyword
---- 	boundary, regardless of the column returned by {func} when
---- 	a:findstart is 1.  This ensures compatibility with other
---- 	completion sources.
---- 	To make further modifications to the inserted text, {func}
---- 	can make use of `CompleteDonePre`.
 --- 	If generating matches is potentially slow, `complete_check()`
 --- 	should be used to avoid blocking and preserve editor
 --- 	responsiveness.
@@ -1183,6 +1180,9 @@ vim.go.cia = vim.go.completeitemalign
 ---    preview  Show extra information about the currently selected
 --- 	    completion in the preview window.  Only works in
 --- 	    combination with "menu" or "menuone".
+---
+--- This option does not apply to `cmdline-completion`. See 'wildoptions'
+--- for that.
 ---
 --- @type string
 vim.o.completeopt = "menu,popup"
@@ -1512,6 +1512,13 @@ vim.bo.ci = vim.bo.copyindent
 --- 		character, the cursor won't move. When not included,
 --- 		the cursor would skip over it and jump to the
 --- 		following occurrence.
+--- 							*cpo-~*
+--- 	~	When included, don't resolve symbolic links when
+--- 		changing directory with `:cd`, `:lcd`, or `:tcd`.
+--- 		This preserves the symbolic link path in buffer names
+--- 		and when displaying the current directory.  When
+--- 		excluded (default), symbolic links are resolved to
+--- 		their target paths.
 --- 							*cpo-_*
 --- 	_	When using `cw` on a word, do not include the
 --- 		whitespace following the word in the motion.
@@ -2093,6 +2100,81 @@ vim.go.ei = vim.go.eventignore
 --- buffers, for which window and buffer related autocommands can be
 --- ignored indefinitely without affecting the global 'eventignore'.
 ---
+--- Note: The following events are considered to happen outside of a
+--- window context and thus cannot be ignored by 'eventignorewin':
+---
+--- 	`ChanInfo`,
+--- 	`ChanOpen`,
+--- 	`CmdUndefined`,
+--- 	`CmdlineChanged`,
+--- 	`CmdlineEnter`,
+--- 	`CmdlineLeave`,
+--- 	`CmdlineLeavePre`,
+--- 	`CmdwinEnter`,
+--- 	`CmdwinLeave`,
+--- 	`ColorScheme`,
+--- 	`ColorSchemePre`,
+--- 	`CompleteChanged`,
+--- 	`CompleteDone`,
+--- 	`CompleteDonePre`,
+--- 	`DiagnosticChanged`,
+--- 	`DiffUpdated`,
+--- 	`DirChanged`,
+--- 	`DirChangedPre`,
+--- 	`ExitPre`,
+--- 	`FocusGained`,
+--- 	`FocusLost`,
+--- 	`FuncUndefined`,
+--- 	`LspAttach`,
+--- 	`LspDetach`,
+--- 	`LspNotify`,
+--- 	`LspProgress`,
+--- 	`LspRequest`,
+--- 	`LspTokenUpdate`,
+--- 	`MenuPopup`,
+--- 	`ModeChanged`,
+--- 	`OptionSet`,
+--- 	`PackChanged`,
+--- 	`PackChangedPre`,
+--- 	`QuickFixCmdPost`,
+--- 	`QuickFixCmdPre`,
+--- 	`QuitPre`,
+--- 	`RemoteReply`,
+--- 	`SafeState`,
+--- 	`SessionLoadPost`,
+--- 	`SessionWritePost`,
+--- 	`ShellCmdPost`,
+--- 	`Signal`,
+--- 	`SourceCmd`,
+--- 	`SourcePost`,
+--- 	`SourcePre`,
+--- 	`SpellFileMissing`,
+--- 	`StdinReadPost`,
+--- 	`StdinReadPre`,
+--- 	`SwapExists`,
+--- 	`Syntax`,
+--- 	`TabClosed`,
+--- 	`TabEnter`,
+--- 	`TabLeave`,
+--- 	`TabNew`,
+--- 	`TabNewEntered`,
+--- 	`TermClose`,
+--- 	`TermEnter`,
+--- 	`TermLeave`,
+--- 	`TermOpen`,
+--- 	`TermRequest`,
+--- 	`TermResponse`,
+--- 	`UIEnter`,
+--- 	`UILeave`,
+--- 	`User`,
+--- 	`VimEnter`,
+--- 	`VimLeave`,
+--- 	`VimLeavePre`,
+--- 	`VimResized`,
+--- 	`VimResume`,
+--- 	`VimSuspend`,
+--- 	`WinNew`
+---
 --- @type string
 vim.o.eventignorewin = ""
 vim.o.eiw = vim.o.eventignorewin
@@ -2117,6 +2199,8 @@ vim.bo.et = vim.bo.expandtab
 ---
 --- Unset 'exrc' to stop further searching of 'exrc' files in parent
 --- directories, similar to `editorconfig.root`.
+---
+--- To get its own location, Lua exrc files can use `debug.getinfo()`.
 ---
 --- Compare 'exrc' to `editorconfig`:
 --- - 'exrc' can execute any code; editorconfig only specifies settings.
@@ -3275,8 +3359,8 @@ vim.o.ims = vim.o.imsearch
 vim.bo.imsearch = vim.o.imsearch
 vim.bo.ims = vim.bo.imsearch
 
---- When nonempty, shows the effects of `:substitute`, `:smagic|,
---- |:snomagic` and user commands with the `:command-preview` flag as you
+--- When nonempty, shows the effects of `:substitute`, `:smagic`,
+--- `:snomagic` and user commands with the `:command-preview` flag as you
 --- type.
 ---
 --- Possible values:
@@ -3640,8 +3724,8 @@ vim.go.js = vim.go.joinspaces
 --- 		when navigating backwards in the jumplist and then
 --- 		jumping to a location.  `jumplist-stack`
 ---
----   view          When moving through the jumplist, `changelist|,
---- 		|alternate-file` or using `mark-motions` try to
+---   view          When moving through the jumplist, `changelist`,
+--- 		`alternate-file` or using `mark-motions` try to
 --- 		restore the `mark-view` in which the action occurred.
 ---
 ---   clean         Remove unloaded buffers from the jumplist.
@@ -5807,8 +5891,8 @@ vim.go.ssl = vim.go.shellslash
 --- and the 'shell' command does not need to support redirection.
 --- The advantage of using a temp file is that the file type and encoding
 --- can be detected.
---- The `FilterReadPre`, `FilterReadPost` and `FilterWritePre|,
---- |FilterWritePost` autocommands event are not triggered when
+--- The `FilterReadPre`, `FilterReadPost` and `FilterWritePre`,
+--- `FilterWritePost` autocommands event are not triggered when
 --- 'shelltemp' is off.
 --- `system()` does not respect this option, it always uses pipes.
 ---
@@ -6168,16 +6252,13 @@ vim.o.si = vim.o.smartindent
 vim.bo.smartindent = vim.o.smartindent
 vim.bo.si = vim.bo.smartindent
 
---- When on, a <Tab> in front of a line inserts blanks according to
---- 'shiftwidth'.  'tabstop' or 'softtabstop' is used in other places.  A
---- <BS> will delete a 'shiftwidth' worth of space at the start of the
---- line.
---- When off, a <Tab> always inserts blanks according to 'tabstop' or
---- 'softtabstop'.  'shiftwidth' is only used for shifting text left or
---- right `shift-left-right`.
---- What gets inserted (a <Tab> or spaces) depends on the 'expandtab'
---- option.  Also see `ins-expandtab`.  When 'expandtab' is not set, the
---- number of spaces is minimized by using <Tab>s.
+--- When enabled, the <Tab> key will indent by 'shiftwidth' if the cursor
+--- is in leading whitespace.  The <BS> key has the opposite effect.
+--- In leading whitespace, this has the same effect as setting
+--- 'softtabstop' to the value of 'shiftwidth'.
+--- NOTE: in most cases, using 'softtabstop' is a better option.  Have a
+--- look at section `30.5` of the user guide for detailed
+--- explanations on how Vim works with tabs and spaces.
 ---
 --- @type boolean
 vim.o.smarttab = true
@@ -6199,18 +6280,24 @@ vim.o.sms = vim.o.smoothscroll
 vim.wo.smoothscroll = vim.o.smoothscroll
 vim.wo.sms = vim.wo.smoothscroll
 
---- Number of spaces that a <Tab> counts for while performing editing
---- operations, like inserting a <Tab> or using <BS>.  It "feels" like
---- <Tab>s are being inserted, while in fact a mix of spaces and <Tab>s is
---- used.  This is useful to keep the 'ts' setting at its standard value
---- of 8, while being able to edit like it is set to 'sts'.  However,
---- commands like "x" still work on the actual characters.
---- When 'sts' is zero, this feature is off.
---- When 'sts' is negative, the value of 'shiftwidth' is used.
---- See also `ins-expandtab`.  When 'expandtab' is not set, the number of
---- spaces is minimized by using <Tab>s.
---- The 'L' flag in 'cpoptions' changes how tabs are used when 'list' is
---- set.
+--- Create soft tab stops, separated by 'softtabstop' number of columns.
+--- In Insert mode, pressing the <Tab> key will move the cursor to the
+--- next soft tab stop, instead of inserting a literal tab.  <BS> behaves
+--- similarly in reverse.  Vim inserts a minimal mix of tab and space
+--- characters to produce the visual effect.
+---
+--- This setting does not affect the display of existing tab characters.
+---
+--- A value of 0 disables this behaviour.  A negative value makes Vim use
+--- 'shiftwidth'.  If you plan to use 'sts' and 'shiftwidth' with
+--- different values, you might consider setting 'smarttab'.
+---
+--- 'softtabstop' is temporarily set to 0 when 'paste' is on and reset
+--- when it is turned off.  It is also reset when 'compatible' is set.
+---
+--- The 'L' flag in 'cpoptions' alters tab behavior when 'list' is
+--- enabled.  See also `ins-expandtab` ans user manual section `30.5` for
+--- in-depth explanations.
 ---
 --- The value of 'softtabstop' will be ignored if `'varsofttabstop'` is set
 --- to anything other than an empty string.
@@ -6379,8 +6466,8 @@ vim.bo.spo = vim.bo.spelloptions
 ---
 --- expr:{expr}	Evaluate expression {expr}.  Use a function to avoid
 --- 		trouble with spaces.  Best is to call a function
---- 		without arguments, see `expr-option-function|.
---- 		|v:val` holds the badly spelled word.  The expression
+--- 		without arguments, see `expr-option-function`.
+--- 		`v:val` holds the badly spelled word.  The expression
 --- 		must evaluate to a List of Lists, each with a
 --- 		suggestion and a score.
 --- 		Example:
@@ -6967,8 +7054,8 @@ vim.go.tabpagemax = vim.o.tabpagemax
 vim.go.tpm = vim.go.tabpagemax
 
 --- Defines the column multiple used to display the Horizontal Tab
---- character (ASCII 9); a Horizontal Tab always advances to the next
---- tab stop.
+--- character (ASCII 9); a Horizontal Tab always advances to the next tab
+--- stop.
 --- The value must be at least 1 and at most 9999.
 --- If `'vartabstop'` is set, this option is ignored.
 --- Leave it at 8 unless you have a strong reason (see usr `30.5`).
@@ -7491,11 +7578,9 @@ vim.o.ut = vim.o.updatetime
 vim.go.updatetime = vim.o.updatetime
 vim.go.ut = vim.go.updatetime
 
---- A list of the number of spaces that a <Tab> counts for while editing,
---- such as inserting a <Tab> or using <BS>.  It "feels" like variable-
---- width <Tab>s are being inserted, while in fact a mixture of spaces
---- and <Tab>s is used.  Tab widths are separated with commas, with the
---- final value applying to all subsequent tabs.
+--- Defines variable-width soft tab stops.  The value is a comma-separated
+--- list of widths in columns.  Each width defines the number of columns
+--- before the next soft tab stop.  The last value repeats indefinitely.
 ---
 --- For example, when editing assembly language files where statements
 --- start in the 9th column and comments in the 41st, it may be useful
@@ -7504,11 +7589,12 @@ vim.go.ut = vim.go.updatetime
 --- ```vim
 --- 	set varsofttabstop=8,32,8
 --- ```
---- This will set soft tabstops with 8 and 8 + 32 spaces, and 8 more
---- for every column thereafter.
+--- This sets soft tab stops at column 8, then at column 40 (8 + 32), and
+--- every 8 columns thereafter.
 ---
---- Note that the value of `'softtabstop'` will be ignored while
---- 'varsofttabstop' is set.
+--- Note: this setting overrides 'softtabstop'.
+--- See section `30.5` of the user manual for detailed explanations on how
+--- Vim works with tabs and spaces.
 ---
 --- @type string
 vim.o.varsofttabstop = ""
@@ -7516,18 +7602,22 @@ vim.o.vsts = vim.o.varsofttabstop
 vim.bo.varsofttabstop = vim.o.varsofttabstop
 vim.bo.vsts = vim.bo.varsofttabstop
 
---- A list of the number of spaces that a <Tab> in the file counts for,
---- separated by commas.  Each value corresponds to one tab, with the
---- final value applying to all subsequent tabs. For example:
+--- Defines variable-width tab stops. The value is a comma-separated list
+--- of widths in columns.  Each width defines the number of columns
+--- before the next tab stop; the last value repeats indefinitely.
 ---
---- ```vim
---- 	set vartabstop=4,20,10,8
+--- For example:
 --- ```
---- This will make the first tab 4 spaces wide, the second 20 spaces,
---- the third 10 spaces, and all following tabs 8 spaces.
+--- 	:set vartabstop=4,8
+--- ```
+--- This places the first tab stop 4 columns from the start of the line
+--- and each subsequent tab stop 8 columns apart.
 ---
---- Note that the value of `'tabstop'` will be ignored while 'vartabstop'
---- is set.
+--- Note: this setting overrides 'tabstop'.
+--- On UNIX, it is recommended to keep the default tabstop value of 8.
+--- Consider setting 'varsofttabstop' instead.
+--- See section `30.5` of the user manual for detailed explanations on how
+--- Vim works with tabs and spaces.
 ---
 --- @type string
 vim.o.vartabstop = ""
@@ -7717,7 +7807,9 @@ vim.go.ww = vim.go.whichwrap
 --- 	:set wc=^I
 --- 	set wc=<Tab>
 --- ```
----
+--- 'wildchar' also enables completion in search pattern contexts such as
+--- `/`, `?`, `:s`, `:g`, `:v`, and `:vim`.  To insert a literal <Tab>
+--- instead of triggering completion, type <C-V><Tab> or "\t".
 ---
 --- @type integer
 vim.o.wildchar = 9
@@ -7927,6 +8019,9 @@ vim.go.wim = vim.go.wildmode
 --- 		is displayed per line.  Often used tag kinds are:
 --- 			d	#define
 --- 			f	function
+---
+--- This option does not apply to `ins-completion`. See 'completeopt' for
+--- that.
 ---
 --- @type string
 vim.o.wildoptions = "pum,tagfile"

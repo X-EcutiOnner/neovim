@@ -844,6 +844,7 @@ void ui_ext_win_position(win_T *wp, bool validate)
         }
         int row_off = 0;
         int col_off = 0;
+        win_grid_alloc(win);
         grid = grid_adjust(&win->w_grid, &row_off, &col_off);
         row += row_off;
         col += col_off;
@@ -2752,15 +2753,7 @@ int win_close(win_T *win, bool free_buf, bool force)
 
     // Guess which window is going to be the new current window.
     // This may change because of the autocommands (sigh).
-    if (!win->w_floating) {
-      wp = frame2win(win_altframe(win, NULL));
-    } else {
-      if (win_valid(prevwin) && prevwin != win) {
-        wp = prevwin;
-      } else {
-        wp = firstwin;
-      }
-    }
+    wp = win->w_floating ? win_float_find_altwin(win, NULL) : frame2win(win_altframe(win, NULL));
 
     // Be careful: If autocommands delete the window or cause this window
     // to be the last one left, return now.
@@ -4448,18 +4441,17 @@ static void enter_tabpage(tabpage_T *tp, buf_T *old_curbuf, bool trigger_enter_a
 
   use_tabpage(tp);
 
-  if (p_ch != curtab->tp_ch_used) {
-    // Use the stored value of p_ch, so that it can be different for each tab page.
-    // Handle other side-effects but avoid setting frame sizes, which are still correct.
-    OptInt new_ch = curtab->tp_ch_used;
-    curtab->tp_ch_used = p_ch;
-    command_frame_height = false;
-    set_option_value(kOptCmdheight, NUMBER_OPTVAL(new_ch), 0);
-    command_frame_height = true;
-  }
-
   if (old_curtab != curtab) {
     tabpage_check_windows(old_curtab);
+    if (p_ch != curtab->tp_ch_used) {
+      // Use the stored value of p_ch, so that it can be different for each tab page.
+      // Handle other side-effects but avoid setting frame sizes, which are still correct.
+      OptInt new_ch = curtab->tp_ch_used;
+      curtab->tp_ch_used = p_ch;
+      command_frame_height = false;
+      set_option_value(kOptCmdheight, NUMBER_OPTVAL(new_ch), 0);
+      command_frame_height = true;
+    }
   }
 
   // We would like doing the TabEnter event first, but we don't have a

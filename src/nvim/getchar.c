@@ -1866,6 +1866,9 @@ int vpeekc_any(void)
 /// @return  true if a character is available, false otherwise.
 bool char_avail(void)
 {
+  if (test_disable_char_avail) {
+    return false;
+  }
   no_mapping++;
   int retval = vpeekc();
   no_mapping--;
@@ -2197,7 +2200,6 @@ static int handle_mapping(int *keylenp, const bool *timedout, int *mapdepth)
       && !(p_paste && (State & (MODE_INSERT | MODE_CMDLINE)))
       && !(State == MODE_HITRETURN && (tb_c1 == CAR || tb_c1 == ' '))
       && State != MODE_ASKMORE
-      && State != MODE_CONFIRM
       && !at_ins_compl_key()) {
     int mlen;
     int nolmaplen;
