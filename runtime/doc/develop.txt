@@ -426,6 +426,9 @@ Use existing common {verb} names (actions) if possible:
     - add:          Appends or inserts into a collection
     - attach:       Listens to something to get events from it (TODO: rename to "on"?)
     - call:         Calls a function
+    - callback      Continuation callback: a single function parameter (not
+                    a field) that returns the result of an async function. Use
+                    "on_…" for all other callbacks and event handlers.
     - cancel:       Cancels or dismisses an event or interaction, typically
                     user-initiated and without error. (Compare "abort", which
                     cancels and signals error/failure.)
@@ -441,8 +444,11 @@ Use existing common {verb} names (actions) if possible:
     - get:          Gets things. Two variants (overloads):
                     1. `get<T>(id: int): T` returns one item.
                     2. `get<T>(filter: dict): T[]` returns a list.
+    - has:          Checks for the presence of an item, feature, etc.
     - inspect:      Presents a high-level, often interactive, view
     - is_enabled:   Checks if functionality is enabled.
+    - on_…:         Handles events or async results, or registers such
+                    a handler. |dev-name-events|
     - open:         Opens something (a buffer, window, …)
     - parse:        Parses something into a structured form
     - set:          Sets a thing (or group of things)
@@ -452,6 +458,7 @@ Use existing common {verb} names (actions) if possible:
     - try_{verb}:   Best-effort operation, failure returns null or error obj
 
 Do NOT use these deprecated verbs:
+    - contains:     Prefer "has".
     - disable:      Prefer `enable(enable: boolean)`.
     - exit:         Prefer "cancel" (or "stop" if appropriate).
     - is_disabled:  Prefer `is_enabled()`.
@@ -475,7 +482,6 @@ everywhere, not "buffer" in some places and "buf" in others.
 
 Do NOT use these deprecated nouns:
     - buffer        Use "buf" instead
-    - callback      Use on_foo instead
     - command       Use "cmd" instead
     - window        Use "win" instead
 
@@ -666,6 +672,8 @@ External UIs are expected to implement these common features:
   the user).
 - Support the text decorations/attributes given by |ui-event-hl_attr_define|.
   The "url" attr should be presented as a clickable hyperlink.
+- Handle the "restart" UI event so that |:restart| works.
+- Detect capslock and show an indicator if capslock is active.
 
 
  vim:tw=78:ts=8:sw=4:et:ft=help:norl:

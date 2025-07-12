@@ -1427,7 +1427,7 @@ int do_search(oparg_T *oap, int dirc, int search_delim, char *pat, size_t patlen
                            || (!(fdo_flags & kOptFdoFlagSearch)
                                && hasFolding(curwin, curwin->w_cursor.lnum, NULL,
                                              NULL))),
-                          SEARCH_STAT_DEF_MAX_COUNT,
+                          (int)p_msc,
                           SEARCH_STAT_DEF_TIMEOUT);
     }
 
@@ -2681,6 +2681,7 @@ static void cmdline_search_stat(int dirc, pos_T *pos, pos_T *cursor_pos, bool sh
 
   // keep the message even after redraw, but don't put in history
   msg_hist_off = true;
+  msg_ext_overwrite = true;
   msg_ext_set_kind("search_count");
   give_warning(msgbuf, false);
   msg_hist_off = false;
@@ -2703,7 +2704,7 @@ static void update_search_stat(int dirc, pos_T *pos, pos_T *cursor_pos, searchst
   static int cnt = 0;
   static bool exact_match = false;
   static int incomplete = 0;
-  static int last_maxcount = SEARCH_STAT_DEF_MAX_COUNT;
+  static int last_maxcount = 0;
   static int chgtick = 0;
   static char *lastpat = NULL;
   static size_t lastpatlen = 0;
@@ -2716,7 +2717,7 @@ static void update_search_stat(int dirc, pos_T *pos, pos_T *cursor_pos, searchst
     stat->cnt = cnt;
     stat->exact_match = exact_match;
     stat->incomplete = incomplete;
-    stat->last_maxcount = last_maxcount;
+    stat->last_maxcount = (int)p_msc;
     return;
   }
   last_maxcount = maxcount;
@@ -2800,7 +2801,7 @@ void f_searchcount(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
 {
   pos_T pos = curwin->w_cursor;
   char *pattern = NULL;
-  int maxcount = SEARCH_STAT_DEF_MAX_COUNT;
+  int maxcount = (int)p_msc;
   int timeout = SEARCH_STAT_DEF_TIMEOUT;
   bool recompute = true;
   searchstat_T stat;
@@ -3021,6 +3022,11 @@ static int fuzzy_match_compute_score(const char *const fuzpat, const char *const
   // Apply unmatched penalty
   const int unmatched = strSz - numMatches;
   score += UNMATCHED_LETTER_PENALTY * unmatched;
+  // In a long string, not all matches may be found due to the recursion limit.
+  // If at least one match is found, reset the score to a non-negative value.
+  if (score < 0 && numMatches > 0) {
+    score = 0;
+  }
 
   // Apply ordering bonuses
   for (int i = 0; i < numMatches; i++) {

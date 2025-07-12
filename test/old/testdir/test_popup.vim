@@ -1004,7 +1004,6 @@ func Test_popup_complete_backwards_ctrl_p()
 endfunc
 
 func Test_complete_o_tab()
-  CheckFunction test_override
   let s:o_char_pressed = 0
 
   fun! s:act_on_text_changed()
@@ -1022,12 +1021,12 @@ func Test_complete_o_tab()
   call setline(1,  ['hoard', 'hoax', 'hoarse', ''])
   let l:expected = ['hoard', 'hoax', 'hoarse', 'hoax', 'hoax']
   call cursor(4,1)
-  call test_override("char_avail", 1)
+  call Ntest_override("char_avail", 1)
   call feedkeys("Ahoa\<tab>\<tab>\<c-y>\<esc>", 'tx')
   call feedkeys("oho\<tab>\<tab>\<c-y>\<esc>", 'tx')
   call assert_equal(l:expected, getline(1,'$'))
 
-  call test_override("char_avail", 0)
+  call Ntest_override("char_avail", 0)
   bwipe!
   set completeopt&
   delfunc s:act_on_text_changed
@@ -2217,6 +2216,71 @@ func Test_pum_clear_when_switch_tab_or_win()
   call term_sendkeys(buf, "\<F4>")
   call TermWait(buf, 50)
   call VerifyScreenDump(buf, 'Test_switchwin_clear_pum_02', {})
+
+  call StopVimInTerminal(buf)
+endfunc
+
+func Test_pum_position_when_wrap()
+  CheckScreendump
+  let lines =<< trim END
+    func Omni_test(findstart, base)
+      if a:findstart
+        return col(".")
+      endif
+      return ['foo', 'bar', 'foobar']
+    endfunc
+    set omnifunc=Omni_test
+    set wrap
+    set cot+=noinsert
+  END
+  call writefile(lines, 'Xtest', 'D')
+  let buf = RunVimInTerminal('-S Xtest', #{rows: 15, cols: 25})
+
+  let long_text = repeat('abcde ', 20)
+  call term_sendkeys(buf, "i" .. long_text)
+  call TermWait(buf, 50)
+  call term_sendkeys(buf, "\<ESC>")
+  call TermWait(buf, 50)
+
+  call term_sendkeys(buf, "5|")
+  call TermWait(buf, 50)
+  call term_sendkeys(buf, "a\<C-X>\<C-O>")
+  call TermWait(buf, 100)
+  call VerifyScreenDump(buf, 'Test_pum_wrap_line1', {})
+  call term_sendkeys(buf, "\<ESC>")
+  call TermWait(buf, 50)
+
+  call term_sendkeys(buf, "30|")
+  call TermWait(buf, 50)
+  call term_sendkeys(buf, "a\<C-X>\<C-O>")
+  call TermWait(buf, 100)
+  call VerifyScreenDump(buf, 'Test_pum_wrap_line2', {})
+  call term_sendkeys(buf, "\<ESC>")
+  call TermWait(buf, 50)
+
+  call term_sendkeys(buf, "55|")
+  call TermWait(buf, 50)
+  call term_sendkeys(buf, "a\<C-X>\<C-O>")
+  call TermWait(buf, 100)
+  call VerifyScreenDump(buf, 'Test_pum_wrap_line3', {})
+  call term_sendkeys(buf, "\<C-E>\<ESC>")
+  call TermWait(buf, 50)
+
+  call term_sendkeys(buf, "85|")
+  call TermWait(buf, 50)
+  call term_sendkeys(buf, "a\<C-X>\<C-O>")
+  call TermWait(buf, 100)
+  call VerifyScreenDump(buf, 'Test_pum_wrap_line4', {})
+  call term_sendkeys(buf, "\<C-E>\<ESC>")
+  call TermWait(buf, 100)
+
+  call term_sendkeys(buf, "108|")
+  call TermWait(buf, 50)
+  call term_sendkeys(buf, "a\<C-X>\<C-O>")
+  call TermWait(buf, 100)
+  call VerifyScreenDump(buf, 'Test_pum_wrap_line5', {})
+  call term_sendkeys(buf, "\<C-E>\<ESC>")
+  call TermWait(buf, 100)
 
   call StopVimInTerminal(buf)
 endfunc

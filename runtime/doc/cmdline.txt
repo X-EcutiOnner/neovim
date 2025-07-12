@@ -388,7 +388,7 @@ CTRL-D		List names that match the pattern in front of the cursor.
 		to the end.
 		The 'wildoptions' option can be set to "tagfile" to list the
 		file of matching tags.
-					*c_CTRL-I* *c_wildchar* *c_<Tab>*
+				*c_CTRL-I* *c_wildchar* *c_<Tab>* */_<Tab>*
 'wildchar' option
 		A match is done on the pattern in front of the cursor.  The
 		match (if there are several, the first match) is inserted
@@ -398,6 +398,10 @@ CTRL-D		List names that match the pattern in front of the cursor.
 		again and there were multiple matches, the next
 		match is inserted.  After the last match, the first is used
 		again (wrap around).
+
+		In search context use <CTRL-V><Tab> or "\t" to search for a
+		literal <Tab> instead of triggering completion.
+
 		The behavior can be changed with the 'wildmode' option.
 							*c_<S-Tab>*
 <S-Tab>		Like 'wildchar' or <Tab>, but begin with the last match and
@@ -430,7 +434,7 @@ CTRL-G		When 'incsearch' is set, entering a search pattern for "/" or
 		"?" and the current match is displayed then CTRL-G will move
 		to the next match (does not take |search-offset| into account)
 		Use CTRL-T to move to the previous match.  Hint: on a regular
-		keyboard T is above G.
+		keyboard G is below T.
 	                                            *c_CTRL-T* */_CTRL-T*
 CTRL-T		When 'incsearch' is set, entering a search pattern for "/" or
 		"?" and the current match is displayed then CTRL-T will move
@@ -564,7 +568,6 @@ that see the '"' as part of their argument:
     :menu (and the like)
     :mkspell
     :normal
-    :ownsyntax
     :popup
     :registers
     :return
@@ -937,14 +940,6 @@ Note: these are typed literally, they are not special keys!
 		   events).
 		   When the match is with a file name, it is expanded to the
 		   full path.
-							*:<sfile>* *<sfile>*
-	<sfile>    When executing a `:source` command, is replaced with the
-		   file name of the sourced file.  *E498*
-		   When executing a function, is replaced with the call stack,
-		   as with <stack> (this is for backwards compatibility, using
-		   <stack> or <script> is preferred).
-		   Note that filename-modifiers are useless when <sfile> is
-		   not used inside a script.
 							*:<stack>* *<stack>*
 	<stack>	   is replaced with the call stack, using
 		   "function {function-name}[{lnum}]" for a function line
@@ -952,7 +947,7 @@ Note: these are typed literally, they are not special keys!
 		   ".." in between items.  E.g.:
 		   "function {function-name1}[{lnum}]..{function-name2}[{lnum}]"
 		   If there is no call stack you get error *E489* .
-							*:<script>* *<script>*
+							*:<script>* *<script>* *E498*
 	<script>   When executing a `:source` command, is replaced with the file
 		   name of the sourced file.  When executing a function, is
 		   replaced with the file name of the script where it is
@@ -971,7 +966,7 @@ Note: these are typed literally, they are not special keys!
 							 *filename-modifiers*
 *:_%:* *::8* *::p* *::.* *::~* *::h* *::t* *::r* *::e* *::s* *::gs* *::S*
      *%:8* *%:p* *%:.* *%:~* *%:h* *%:t* *%:r* *%:e* *%:s* *%:gs* *%:S*
-The file name modifiers can be used after "%", "#", "#n", "<cfile>", "<sfile>",
+The file name modifiers can be used after "%", "#", "#n", "<cfile>", "<script>",
 "<afile>" or "<abuf>".  They are also used with the |fnamemodify()| function.
 These modifiers can be given, in this order:
 	:p	Make file name a full path.  Must be the first modifier.  Also

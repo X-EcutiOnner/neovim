@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "nvim/api/private/defs.h"
+#include "nvim/api/win_config.h"
 #include "nvim/ascii_defs.h"
 #include "nvim/autocmd.h"
 #include "nvim/buffer_defs.h"
@@ -28,6 +29,7 @@
 #include "nvim/indent_c.h"
 #include "nvim/insexpand.h"
 #include "nvim/macros_defs.h"
+#include "nvim/mark.h"
 #include "nvim/mbyte.h"
 #include "nvim/memline.h"
 #include "nvim/memory.h"
@@ -694,6 +696,14 @@ const char *did_set_buftype(optset_T *args)
       || (!buf->terminal && buf->b_p_bt[0] == 't')
       || opt_strings_flags(buf->b_p_bt, opt_bt_values, NULL, false) != OK) {
     return e_invarg;
+  }
+  // buftype=prompt:
+  if (buf->b_p_bt[0] == 'p') {
+    // Set default value for 'comments'
+    set_option_direct(kOptComments, STATIC_CSTR_AS_OPTVAL(""), OPT_LOCAL, SID_NONE);
+    // set the prompt start position to lastline.
+    pos_T next_prompt = { .lnum = buf->b_ml.ml_line_count, .col = 1, .coladd = 0 };
+    RESET_FMARK(&buf->b_prompt_start, next_prompt, 0, ((fmarkv_T)INIT_FMARKV));
   }
   if (win->w_status_height || global_stl_height()) {
     win->w_redr_status = true;
@@ -2090,6 +2100,19 @@ const char *did_set_wildmode(optset_T *args FUNC_ATTR_UNUSED)
 const char *did_set_winbar(optset_T *args)
 {
   return did_set_statustabline_rulerformat(args, false, false);
+}
+
+/// The 'winborder' option is changed.
+const char *did_set_winborder(optset_T *args)
+{
+  WinConfig fconfig = WIN_CONFIG_INIT;
+  Error err = ERROR_INIT;
+  if (!parse_winborder(&fconfig, &err)) {
+    api_clear_error(&err);
+    return e_invarg;
+  }
+  api_clear_error(&err);
+  return NULL;
 }
 
 /// The 'winhighlight' option is changed.

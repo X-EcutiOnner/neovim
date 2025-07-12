@@ -4,13 +4,13 @@
 		  NVIM REFERENCE MANUAL
 
 
-Vimscript functions	*vimscript-functions* *builtin-functions* *builtin.txt*
+Vimscript functions			*vimscript-functions* *builtin.txt*
 
 For functions grouped by what they are used for see |function-list|.
 
 				      Type |gO| to see the table of contents.
 ==============================================================================
-1. Details					*builtin-function-details*
+1. Details					*vimscript-functions-details*
 
 abs({expr})                                                              *abs()*
 		Return the absolute value of {expr}.  When {expr} evaluates to
@@ -1278,8 +1278,8 @@ complete_match([{lnum}, {col}])                               *complete_match()*
 		  or empty string if no match was found or when using the
 		  default 'iskeyword' pattern.
 
-		When 'isexpand' is empty, uses the 'iskeyword' pattern
-		"\k\+$" to find the start of the current keyword.
+		When 'isexpand' is empty, uses the 'iskeyword' pattern "\k\+$"
+		to find the start of the current keyword.
 
 		Examples: >vim
 		  set isexpand=.,->,/,/*,abc
@@ -2106,7 +2106,7 @@ expand({string} [, {nosuf} [, {list}]])                               *expand()*
 			<abuf>		autocmd buffer number (as a String!)
 			<amatch>	autocmd matched name
 			<cexpr>		C expression under the cursor
-			<sfile>		sourced script file or function name
+			<sfile>		deprecated, use <script> or <stack>
 			<slnum>		sourced script line number or function
 					line number
 			<sflnum>	script file line number, also when in
@@ -2114,7 +2114,8 @@ expand({string} [, {nosuf} [, {list}]])                               *expand()*
 			<SID>		"<SNR>123_"  where "123" is the
 					current script ID  |<SID>|
 			<script>	sourced script file, or script file
-					where the current function was defined
+					where the current function was defined.
+					Use |debug.getinfo()| in Lua scripts.
 			<stack>		call stack
 			<cword>		word under the cursor
 			<cWORD>		WORD under the cursor
@@ -3115,6 +3116,7 @@ getbufvar({buf}, {varname} [, {def}])                              *getbufvar()*
 		Examples: >vim
 			let bufmodified = getbufvar(1, "&mod")
 			echo "todo myvar = " .. getbufvar("todo", "myvar")
+<
 
                 Parameters: ~
                   • {buf} (`integer|string`)
@@ -3163,8 +3165,7 @@ getchar([{expr} [, {opts}]])                                         *getchar()*
 			Return zero otherwise.
 		If {expr} is 1, only check if a character is available, it is
 			not consumed.  Return zero if no character available.
-		If you prefer always getting a string use |getcharstr()|, or
-		specify |FALSE| as "number" in {opts}.
+		To always get a string, specify "number" as |FALSE| in {opts}.
 
 		Without {expr} and when {expr} is 0 a whole character or
 		special key is returned.  If it is a single character, the
@@ -3349,6 +3350,9 @@ getcmdcompltype()                                            *getcmdcompltype()*
 		|getcmdprompt()|, |getcmdcomplpat()| and |setcmdline()|.
 		Returns an empty string when completion is not defined.
 
+		To get the type of the command-line completion for a specified
+		string, use |getcompletiontype()|.
+
                 Return: ~
                   (`string`)
 
@@ -3508,6 +3512,19 @@ getcompletion({pat}, {type} [, {filtered}])                    *getcompletion()*
                 Return: ~
                   (`string[]`)
 
+getcompletiontype({pat})                                   *getcompletiontype()*
+		Return the type of the command-line completion using {pat}.
+		When no corresponding completion type is found, an empty
+		string is returned.
+		To get the current command-line completion type, use
+		|getcmdcompltype()|.
+
+                Parameters: ~
+                  • {pat} (`string`)
+
+                Return: ~
+                  (`string`)
+
 getcurpos([{winid}])                                               *getcurpos()*
 		Get the position of the cursor.  This is like getpos('.'), but
 		includes an extra "curswant" item in the list:
@@ -3537,7 +3554,7 @@ getcurpos([{winid}])                                               *getcurpos()*
                   • {winid} (`integer?`)
 
                 Return: ~
-                  (`any`)
+                  (`[integer, integer, integer, integer, integer]`)
 
 getcursorcharpos([{winid}])                                 *getcursorcharpos()*
 		Same as |getcurpos()| but the column number in the returned
@@ -3846,7 +3863,7 @@ getmatches([{win}])                                               *getmatches()*
                   • {win} (`integer?`)
 
                 Return: ~
-                  (`any`)
+                  (`vim.fn.getmatches.ret.item[]`)
 
 getmousepos()                                                    *getmousepos()*
 		Returns a |Dictionary| with the last known position of the
@@ -3952,7 +3969,7 @@ getpos({expr})                                                        *getpos()*
                   • {expr} (`string`)
 
                 Return: ~
-                  (`integer[]`)
+                  (`[integer, integer, integer, integer]`)
 
 getqflist([{what}])                                                *getqflist()*
 		Returns a |List| with all the current quickfix errors.  Each
@@ -4089,6 +4106,7 @@ getreg([{regname} [, 1 [, {list}]]])                                  *getreg()*
 
                 Parameters: ~
                   • {regname} (`string?`)
+                  • {expr} (`any?`)
                   • {list} (`nil|false?`)
 
                 Return: ~
@@ -4180,9 +4198,9 @@ getregion({pos1}, {pos2} [, {opts}])                               *getregion()*
 <
 
                 Parameters: ~
-                  • {pos1} (`table`)
-                  • {pos2} (`table`)
-                  • {opts} (`table?`)
+                  • {pos1} (`[integer, integer, integer, integer]`)
+                  • {pos2} (`[integer, integer, integer, integer]`)
+                  • {opts} (`{type?:string, exclusive?:boolean}?`)
 
                 Return: ~
                   (`string[]`)
@@ -4220,12 +4238,13 @@ getregionpos({pos1}, {pos2} [, {opts}])                         *getregionpos()*
 					(default: |FALSE|)
 
                 Parameters: ~
-                  • {pos1} (`table`)
-                  • {pos2} (`table`)
-                  • {opts} (`table?`)
+                  • {pos1} (`[integer, integer, integer, integer]`)
+                  • {pos2} (`[integer, integer, integer, integer]`)
+                  • {opts}
+                    (`{type?:string, exclusive?:boolean, eol?:boolean}?`)
 
                 Return: ~
-                  (`integer[][][]`)
+                  (`[ [integer, integer, integer, integer], [integer, integer, integer, integer] ][]`)
 
 getregtype([{regname}])                                           *getregtype()*
 		The result is a String, which is type of register {regname}.
@@ -4518,6 +4537,7 @@ getwinvar({winnr}, {varname} [, {def}])                            *getwinvar()*
 		Examples: >vim
 			let list_is_on = getwinvar(2, '&list')
 			echo "myvar = " .. getwinvar(1, 'myvar')
+<
 
                 Parameters: ~
                   • {winnr} (`integer`)
@@ -5217,6 +5237,7 @@ inputlist({textlist})                                              *inputlist()*
 		Example: >vim
 			let color = inputlist(['Select color:', '1. red',
 				\ '2. green', '3. blue'])
+<
 
                 Parameters: ~
                   • {textlist} (`string[]`)
@@ -5718,6 +5739,7 @@ libcall({libname}, {funcname}, {argument})                 *libcall()* *E364* *E
 		object code must be compiled as position-independent ('PIC').
 		Examples: >vim
 			echo libcall("libc.so", "getenv", "HOME")
+<
 
                 Parameters: ~
                   • {libname} (`string`)
@@ -7542,6 +7564,19 @@ printf({fmt}, {expr1} ...)                                            *printf()*
                 Return: ~
                   (`string`)
 
+prompt_getinput({buf})                                       *prompt_getinput()*
+		Gets the current user-input in |prompt-buffer| {buf} without invoking
+		prompt_callback. {buf} can be a buffer name or number.
+
+		If the buffer doesn't exist or isn't a prompt buffer, an empty
+		string is returned.
+
+                Parameters: ~
+                  • {buf} (`integer|string`)
+
+                Return: ~
+                  (`any`)
+
 prompt_getprompt({buf})                                     *prompt_getprompt()*
 		Returns the effective prompt text for buffer {buf}.  {buf} can
 		be a buffer name or number.  See |prompt-buffer|.
@@ -7851,7 +7886,7 @@ readfile({fname} [, {type} [, {max}]])                              *readfile()*
                   • {max} (`integer?`)
 
                 Return: ~
-                  (`any`)
+                  (`string[]`)
 
 reduce({object}, {func} [, {initial}])                           *reduce()* *E998*
 		{func} is called for every item in {object}, which can be a
@@ -8420,11 +8455,12 @@ searchcount([{options}])                                         *searchcount()*
 
 		To get the last search count when |n| or |N| was pressed, call
 		this function with `recompute: 0` . This sometimes returns
-		wrong information because |n| and |N|'s maximum count is 999.
-		If it exceeded 999 the result must be max count + 1 (1000). If
-		you want to get correct information, specify `recompute: 1`: >vim
+		wrong information because of 'maxsearchcount'.
+		If the count exceeded 'maxsearchcount', the result must be
+		'maxsearchcount' + 1. If you want to get correct information,
+		specify `recompute: 1`: >vim
 
-			" result == maxcount + 1 (1000) when many matches
+			" result == 'maxsearchcount' + 1 when many matches
 			let result = searchcount(#{recompute: 0})
 
 			" Below returns correct result (recompute defaults
@@ -8511,7 +8547,7 @@ searchcount([{options}])                                         *searchcount()*
 						result.  if search exceeded
 						total count, "total" value
 						becomes `maxcount + 1`
-						(default: 0)
+						(default: 'maxsearchcount')
 		  pos		|List|		`[lnum, col, off]` value
 						when recomputing the result.
 						this changes "current" result
@@ -9062,7 +9098,7 @@ setmatches({list} [, {win}])                                      *setmatches()*
 		window ID instead of the current window.
 
                 Parameters: ~
-                  • {list} (`any`)
+                  • {list} (`vim.fn.getmatches.ret.item[]`)
                   • {win} (`integer?`)
 
                 Return: ~
@@ -9303,6 +9339,7 @@ setreg({regname}, {value} [, {options}])                              *setreg()*
 		You can also change the type of a register by appending
 		nothing: >vim
 			call setreg('a', '', 'al')
+<
 
                 Parameters: ~
                   • {regname} (`string`)
@@ -9400,6 +9437,7 @@ setwinvar({nr}, {varname}, {val})                                  *setwinvar()*
 		Examples: >vim
 			call setwinvar(1, "&list", 0)
 			call setwinvar(2, "myvar", "foobar")
+<
 
                 Parameters: ~
                   • {nr} (`integer`)
@@ -9870,6 +9908,7 @@ sign_unplace({group} [, {dict}])                                *sign_unplace()*
 
 			" Remove all the placed signs from all the buffers
 			call sign_unplace('*')
+<
 
                 Parameters: ~
                   • {group} (`string`)
@@ -10526,6 +10565,7 @@ strftime({format} [, {time}])                                       *strftime()*
 		  echo strftime("%H:%M")		   " 11:55
 		  echo strftime("%c", getftime("file.c"))
 						   " Show mod time of file.c.
+<
 
                 Parameters: ~
                   • {format} (`string`)
@@ -10868,6 +10908,7 @@ swapfilelist()                                                  *swapfilelist()*
 			let &directory = '.'
 			let swapfiles = swapfilelist()
 			let &directory = save_dir
+<
 
                 Return: ~
                   (`string[]`)
@@ -11628,6 +11669,7 @@ uniq({list} [, {func} [, {dict}]])                                 *uniq()* *E88
 			let newlist = uniq(copy(mylist))
 <		The default compare function uses the string representation of
 		each item.  For the use of {func} and {dict} see |sort()|.
+		For deduplicating text in the current buffer see |:uniq|.
 
 		Returns zero if {list} is not a |List|.
 
@@ -11741,7 +11783,7 @@ virtcol({expr} [, {list} [, {winid}]])                               *virtcol()*
                   • {winid} (`integer?`)
 
                 Return: ~
-                  (`any`)
+                  (`integer|[integer, integer]`)
 
 virtcol2col({winid}, {lnum}, {col})                              *virtcol2col()*
 		The result is a Number, which is the byte index of the

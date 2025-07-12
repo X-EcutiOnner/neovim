@@ -121,10 +121,11 @@
 #define CPO_REGAPPEND   '>'     // insert NL when appending to a register
 #define CPO_SCOLON      ';'     // using "," and ";" will skip over char if
                                 // cursor would not move
+#define CPO_NOSYMLINKS  '~'     // don't resolve symlinks when changing directory
 #define CPO_CHANGEW     '_'     // "cw" special-case
 // default values for Vim and Vi
 #define CPO_VIM         "aABceFs_"
-#define CPO_VI          "aAbBcCdDeEfFiIJKlLmMnoOpPqrRsStuvWxXyZ$!%+>;_"
+#define CPO_VI          "aAbBcCdDeEfFiIJKlLmMnoOpPqrRsStuvWxXyZ$!%+>;~_"
 
 // characters for p_ww option:
 #define WW_ALL          "bshl<>[]~"
@@ -279,6 +280,7 @@ EXTERN char *p_bsk;             ///< 'backupskip'
 EXTERN char *p_breakat;         ///< 'breakat'
 EXTERN char *p_bh;              ///< 'bufhidden'
 EXTERN char *p_bt;              ///< 'buftype'
+EXTERN OptInt p_busy;           ///< 'busy'
 EXTERN char *p_cmp;             ///< 'casemap'
 EXTERN unsigned cmp_flags;
 EXTERN char *p_enc;             ///< 'encoding'
@@ -411,6 +413,7 @@ EXTERN OptInt p_mmd;            ///< 'maxmapdepth'
 EXTERN OptInt p_mmp;            ///< 'maxmempattern'
 EXTERN OptInt p_mis;            ///< 'menuitems'
 EXTERN char *p_mopt;            ///< 'messagesopt'
+EXTERN OptInt p_msc;            ///< 'maxsearchcount'
 EXTERN char *p_msm;             ///< 'mkspellmem'
 EXTERN int p_ml;                ///< 'modeline'
 EXTERN int p_mle;               ///< 'modelineexpr'

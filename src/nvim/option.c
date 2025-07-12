@@ -2840,6 +2840,9 @@ static const char *validate_num_option(OptIndex opt_idx, OptInt *newval, char *e
     return e_invarg;
   }
 
+  // if you increase this, also increase SEARCH_STAT_BUF_LEN in search.c
+  enum { MAX_SEARCH_COUNT = 9999, };
+
   switch (opt_idx) {
   case kOptHelpheight:
   case kOptTitlelen:
@@ -2970,6 +2973,13 @@ static const char *validate_num_option(OptIndex opt_idx, OptInt *newval, char *e
       return e_cannot_have_negative_or_zero_number_of_quickfix;
     } else if (value > 100) {
       return e_cannot_have_more_than_hundred_quickfix;
+    }
+    break;
+  case kOptMaxsearchcount:
+    if (value <= 0) {
+      return e_positive;
+    } else if (value > MAX_SEARCH_COUNT) {
+      return e_invarg;
     }
     break;
   default:
@@ -4681,6 +4691,8 @@ void *get_varp_from(vimoption_T *p, buf_T *buf, win_T *win)
     return &(buf->b_p_bt);
   case kOptBuflisted:
     return &(buf->b_p_bl);
+  case kOptBusy:
+    return &(buf->b_p_busy);
   case kOptChannel:
     return &(buf->b_p_channel);
   case kOptCopyindent:
@@ -6321,7 +6333,8 @@ dict_T *get_winbuf_options(const int bufopt)
 int get_scrolloff_value(win_T *wp)
 {
   // Disallow scrolloff in terminal-mode. #11915
-  if (State & MODE_TERMINAL) {
+  // Still allow 'scrolloff' for non-terminal buffers. #34447
+  if ((State & MODE_TERMINAL) && wp->w_buffer->terminal) {
     return 0;
   }
   return (int)(wp->w_p_so < 0 ? p_so : wp->w_p_so);

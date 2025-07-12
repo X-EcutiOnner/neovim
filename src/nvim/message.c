@@ -29,6 +29,7 @@
 #include "nvim/ex_cmds_defs.h"
 #include "nvim/ex_docmd.h"
 #include "nvim/ex_eval.h"
+#include "nvim/ex_getln.h"
 #include "nvim/fileio.h"
 #include "nvim/garray.h"
 #include "nvim/garray_defs.h"
@@ -156,13 +157,6 @@ static sattr_T msg_ext_last_attr = -1;
 static int msg_ext_last_hl_id;
 
 static bool msg_ext_history = false;  ///< message was added to history
-static bool msg_ext_overwrite = false;  ///< will overwrite last message
-static int msg_ext_visible = 0;  ///< number of messages currently visible
-
-static bool msg_ext_history_visible = false;
-
-/// Shouldn't clear message after leaving cmdline
-static bool msg_ext_keep_after_cmdline = false;
 
 static int msg_grid_pos_at_flush = 0;
 
@@ -289,9 +283,7 @@ void msg_multiline(String str, int hl_id, bool check_int, bool hist, bool *need_
   }
 
   // Print the rest of the message
-  if (*chunk != NUL) {
-    msg_outtrans_len(chunk, (int)(str.size - (size_t)(chunk - str.data)), hl_id, hist);
-  }
+  msg_outtrans_len(chunk, (int)(str.size - (size_t)(chunk - str.data)), hl_id, hist);
 }
 
 // Avoid starting a new message for each chunk and adding message to history in msg_keep().
@@ -1052,6 +1044,11 @@ static void msg_hist_add_multihl(HlMessage msg, bool temp)
   entry->kind = msg_ext_kind;
   entry->prev = msg_hist_last;
   entry->next = NULL;
+  // NOTE: this does not encode if the message was actually appended to the
+  // previous entry in the message history. However append is currently only
+  // true for :echon, which is stored in the history as a temporary entry for
+  // "g<" where it is guaranteed to be after the entry it was appended to.
+  entry->append = msg_ext_append;
 
   if (msg_hist_first == NULL) {
     msg_hist_first = entry;
@@ -1187,10 +1184,12 @@ void ex_messages(exarg_T *eap)
   Array entries = ARRAY_DICT_INIT;
   MessageHistoryEntry *p = eap->skip ? msg_hist_temp : msg_hist_first;
   int skip = eap->addr_count ? (msg_hist_len - eap->line2) : 0;
-  while (p != NULL) {
+  for (; p != NULL; p = p->next) {
+    // Skip over count or temporary "g<" messages.
     if ((p->temp && !eap->skip) || skip-- > 0) {
-      // Skipping over count or temporary "g<" messages.
-    } else if (ui_has(kUIMessages)) {
+      continue;
+    }
+    if (ui_has(kUIMessages) && !msg_silent) {
       Array entry = ARRAY_DICT_INIT;
       ADD(entry, CSTR_TO_OBJ(p->kind));
       Array content = ARRAY_DICT_INIT;
@@ -1203,17 +1202,18 @@ void ex_messages(exarg_T *eap)
         ADD(content, ARRAY_OBJ(content_entry));
       }
       ADD(entry, ARRAY_OBJ(content));
+      ADD(entry, BOOLEAN_OBJ(p->append));
       ADD(entries, ARRAY_OBJ(entry));
-    } else {
-      msg_multihl(p->msg, p->kind, false, false);
     }
-    p = p->next;
+    if (redirecting() || !ui_has(kUIMessages)) {
+      msg_silent += ui_has(kUIMessages);
+      msg_multihl(p->msg, p->kind, false, false);
+      msg_silent -= ui_has(kUIMessages);
+    }
   }
   if (kv_size(entries) > 0) {
-    ui_call_msg_history_show(entries);
+    ui_call_msg_history_show(entries, eap->skip != 0);
     api_free_array(entries);
-    msg_ext_history_visible = true;
-    wait_return(false);
   }
 }
 
@@ -1221,7 +1221,6 @@ void ex_messages(exarg_T *eap)
 /// and a delay.
 void msg_end_prompt(void)
 {
-  msg_ext_clear_later();
   need_wait_return = false;
   emsg_on_display = false;
   cmdline_row = msg_row;
@@ -1243,6 +1242,11 @@ void wait_return(int redraw)
 
   if (redraw == true) {
     redraw_all_later(UPD_NOT_VALID);
+  }
+
+  if (ui_has(kUIMessages)) {
+    prompt_for_input("Press any key to continue", HLF_M, true, NULL);
+    return;
   }
 
   // If using ":silent cmd", don't wait for a return.  Also don't set
@@ -1393,7 +1397,6 @@ void wait_return(int redraw)
     }
     skip_redraw = true;  // skip redraw once
     do_redraw = false;
-    msg_ext_keep_after_cmdline = true;
   }
 
   // If the screen size changed screen_resize() will redraw the screen.
@@ -1419,9 +1422,6 @@ void wait_return(int redraw)
     if (redraw == true || (msg_scrolled != 0 && redraw != -1)) {
       redraw_later(curwin, UPD_VALID);
     }
-    if (ui_has(kUIMessages)) {
-      msg_ext_clear(true);
-    }
   }
 }
 
@@ -1439,8 +1439,6 @@ static void hit_return_msg(bool newline_sb)
     msg_putchar('\n');
   }
   p_more = false;       // don't want to see this message when scrolling back
-  msg_ext_skip_flush = false;
-  msg_ext_set_kind("return_prompt");
   if (got_int) {
     msg_puts(_("Interrupt: "));
   }
@@ -1455,6 +1453,11 @@ static void hit_return_msg(bool newline_sb)
 /// Set "keep_msg" to "s".  Free the old value and check for NULL pointer.
 void set_keep_msg(const char *s, int hl_id)
 {
+  // Kept message is not cleared and re-emitted with ext_messages: #20416.
+  if (ui_has(kUIMessages)) {
+    return;
+  }
+
   xfree(keep_msg);
   if (s != NULL && msg_silent == 0) {
     keep_msg = xstrdup(s);
@@ -1566,10 +1569,6 @@ void msg_start(void)
 
   if (ui_has(kUIMessages)) {
     msg_ext_ui_flush();
-    if (!msg_scroll && msg_ext_visible) {
-      // Will overwrite last message.
-      msg_ext_overwrite = true;
-    }
   }
 
   // When redirecting, may need to start a new line.
@@ -1631,7 +1630,7 @@ static void msg_home_replace_hl(const char *fname, int hl_id)
 /// @return  the number of characters it takes on the screen.
 int msg_outtrans(const char *str, int hl_id, bool hist)
 {
-  return msg_outtrans_len(str, (int)strlen(str), hl_id, hist);
+  return *str == NUL ? 0 : msg_outtrans_len(str, (int)strlen(str), hl_id, hist);
 }
 
 /// Output one character at "p".
@@ -1713,8 +1712,8 @@ int msg_outtrans_len(const char *msgstr, int len, int hl_id, bool hist)
     }
   }
 
-  if (str > plain_start && !got_int) {
-    // Print the printable chars at the end.
+  if ((str > plain_start || plain_start == msgstr) && !got_int) {
+    // Print the printable chars at the end (or emit empty string).
     msg_puts_len(plain_start, str - plain_start, hl_id, hist);
   }
 
@@ -2154,6 +2153,9 @@ void msg_puts_len(const char *const str, const ptrdiff_t len, int hl_id, bool hi
 
   // Don't print anything when using ":silent cmd" or empty message.
   if (msg_silent != 0 || *str == NUL) {
+    if (*str == NUL && ui_has(kUIMessages)) {
+      ui_call_msg_show(cstr_as_string("empty"), (Array)ARRAY_DICT_INIT, false, false, false);
+    }
     return;
   }
 
@@ -2166,16 +2168,7 @@ void msg_puts_len(const char *const str, const ptrdiff_t len, int hl_id, bool hi
   // need_wait_return after some prompt, and then outputting something
   // without scrolling
   // Not needed when only using CR to move the cursor.
-  bool overflow = false;
-  if (ui_has(kUIMessages)) {
-    int count = msg_ext_visible + (msg_ext_overwrite ? 0 : 1);
-    // TODO(bfredl): possible extension point, let external UI control this
-    if (count > 1) {
-      overflow = true;
-    }
-  } else {
-    overflow = msg_scrolled > (p_ch == 0 ? 1 : 0);
-  }
+  bool overflow = !ui_has(kUIMessages) && msg_scrolled > (p_ch == 0 ? 1 : 0);
 
   if (overflow && !msg_scrolled_ign && strcmp(str, "\r") != 0) {
     need_wait_return = true;
@@ -2505,7 +2498,6 @@ void msg_scroll_flush(void)
 void msg_reset_scroll(void)
 {
   if (ui_has(kUIMessages)) {
-    msg_ext_clear(true);
     return;
   }
   // TODO(bfredl): some duplicate logic with update_screen(). Later on
@@ -2702,7 +2694,6 @@ void show_sb_text(void)
 {
   if (ui_has(kUIMessages)) {
     exarg_T ea = { .arg = "", .skip = true };
-    msg_ext_clear(true);
     ex_messages(&ea);
     return;
   }
@@ -3068,13 +3059,17 @@ void msg_moremsg(bool full)
 }
 
 /// Repeat the message for the current mode: MODE_ASKMORE, MODE_EXTERNCMD,
-/// MODE_CONFIRM or exmode_active.
+/// confirm() prompt or exmode_active.
 void repeat_message(void)
 {
+  if (ui_has(kUIMessages)) {
+    return;
+  }
+
   if (State == MODE_ASKMORE) {
     msg_moremsg(true);          // display --more-- message again
     msg_row = Rows - 1;
-  } else if (State == MODE_CONFIRM) {
+  } else if (State == MODE_CMDLINE && confirm_msg != NULL) {
     display_confirm_msg();      // display ":confirm" message again
     msg_row = Rows - 1;
   } else if (State == MODE_EXTERNCMD) {
@@ -3187,7 +3182,7 @@ void msg_ext_ui_flush(void)
     Array *tofree = msg_ext_init_chunks();
     ui_call_msg_show(cstr_as_string(msg_ext_kind), *tofree, msg_ext_overwrite, msg_ext_history,
                      msg_ext_append);
-    if (msg_ext_history || strequal(msg_ext_kind, "return_prompt")) {
+    if (msg_ext_history) {
       api_free_array(*tofree);
     } else {
       // Add to history as temporary message for "g<".
@@ -3201,9 +3196,6 @@ void msg_ext_ui_flush(void)
       msg_hist_add_multihl(msg, true);
     }
     xfree(tofree);
-    if (!msg_ext_overwrite) {
-      msg_ext_visible++;
-    }
     msg_ext_overwrite = false;
     msg_ext_history = false;
     msg_ext_append = false;
@@ -3226,44 +3218,6 @@ void msg_ext_flush_showmode(void)
     api_free_array(*tofree);
     xfree(tofree);
   }
-}
-
-void msg_ext_clear(bool force)
-{
-  if (msg_ext_visible && (!msg_ext_keep_after_cmdline || force)) {
-    ui_call_msg_clear();
-    msg_ext_visible = 0;
-    msg_ext_overwrite = false;  // nothing to overwrite
-  }
-  if (msg_ext_history_visible) {
-    ui_call_msg_history_clear();
-    msg_ext_history_visible = false;
-  }
-
-  // Only keep once.
-  msg_ext_keep_after_cmdline = false;
-}
-
-void msg_ext_clear_later(void)
-{
-  if (msg_ext_is_visible()) {
-    msg_ext_need_clear = true;
-    set_must_redraw(UPD_VALID);
-  }
-}
-
-void msg_ext_check_clear(void)
-{
-  // Redraw after cmdline or prompt is expected to clear messages.
-  if (msg_ext_need_clear) {
-    msg_ext_clear(true);
-    msg_ext_need_clear = false;
-  }
-}
-
-bool msg_ext_is_visible(void)
-{
-  return ui_has(kUIMessages) && msg_ext_visible > 0;
 }
 
 /// If the written message runs into the shown command or ruler, we have to
@@ -3546,8 +3500,6 @@ int do_dialog(int type, const char *title, const char *message, const char *butt
   int oldState = State;
 
   msg_silent = 0;  // If dialog prompts for input, user needs to see it! #8788
-  State = MODE_CONFIRM;
-  setmouse();
 
   // Since we wait for a keypress, don't make the
   // user press RETURN as well afterwards.
@@ -3604,6 +3556,8 @@ int do_dialog(int type, const char *title, const char *message, const char *butt
   }
 
   xfree(hotkeys);
+  xfree(confirm_msg);
+  confirm_msg = NULL;
 
   msg_silent = save_msg_silent;
   State = oldState;
@@ -3684,7 +3638,6 @@ static char *console_dialog_alloc(const char *message, const char *buttons, bool
   }
 
   // Now allocate space for the strings
-  xfree(confirm_msg);
   confirm_msg = xmalloc((size_t)msg_len);
   snprintf(confirm_msg, (size_t)msg_len, "\n%s\n", message);
 

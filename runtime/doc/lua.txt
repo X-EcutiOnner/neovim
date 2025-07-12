@@ -626,10 +626,10 @@ vim.hl.range({bufnr}, {ns}, {higroup}, {start}, {finish}, {opts})
       • {bufnr}    (`integer`) Buffer number to apply highlighting to
       • {ns}       (`integer`) Namespace to add highlight to
       • {higroup}  (`string`) Highlight group to use for highlighting
-      • {start}    (`integer[]|string`) Start of region as a (line, column)
-                   tuple or string accepted by |getpos()|
-      • {finish}   (`integer[]|string`) End of region as a (line, column)
-                   tuple or string accepted by |getpos()|
+      • {start}    (`[integer,integer]|string`) Start of region as a (line,
+                   column) tuple or string accepted by |getpos()|
+      • {finish}   (`[integer,integer]|string`) End of region as a (line,
+                   column) tuple or string accepted by |getpos()|
       • {opts}     (`table?`) A table with the following fields:
                    • {regtype}? (`string`, default: `'v'` i.e. charwise) Type
                      of range. See |getregtype()|
@@ -1076,8 +1076,10 @@ vim.ui_attach({ns}, {opts}, {callback})                      *vim.ui_attach()*
                       enable events for the respective UI element.
                     • {set_cmdheight}? (`boolean`) If false, avoid setting
                       'cmdheight' to 0 when `ext_messages` is enabled.
-      • {callback}  (`fun(event: string, ...)`) Function called for each UI
-                    event
+      • {callback}  (`fun(event: string, ...): any`) Function called for each
+                    UI event. A truthy return value signals to Nvim that the
+                    event is handled, in which case it is not propagated to
+                    remote UIs.
 
 vim.ui_detach({ns})                                          *vim.ui_detach()*
     Detach a callback previously attached with |vim.ui_attach()| for the given
@@ -1468,20 +1470,21 @@ Lua module: vim                                                      *lua-vim*
 vim.cmd({command})                                                 *vim.cmd()*
     Executes Vimscript (|Ex-commands|).
 
-    Note that `vim.cmd` can be indexed with a command name to return a
-    callable function to the command.
+    Can be indexed with a command name to get a function, thus you can write
+    `vim.cmd.echo(…)` instead of `vim.cmd{cmd='echo',…}`.
 
-    Example: >lua
+    Examples: >lua
+        -- Single command:
         vim.cmd('echo 42')
+        -- Multiline script:
         vim.cmd([[
-          augroup My_group
+          augroup my.group
             autocmd!
             autocmd FileType c setlocal cindent
           augroup END
         ]])
 
-        -- Ex command :echo "foo"
-        -- Note string literals need to be double quoted.
+        -- Ex command :echo "foo". Note: string literals must be double-quoted.
         vim.cmd('echo "foo"')
         vim.cmd { cmd = 'echo', args = { '"foo"' } }
         vim.cmd.echo({ args = { '"foo"' } })
@@ -1489,22 +1492,20 @@ vim.cmd({command})                                                 *vim.cmd()*
 
         -- Ex command :write! myfile.txt
         vim.cmd('write! myfile.txt')
-        vim.cmd { cmd = 'write', args = { "myfile.txt" }, bang = true }
-        vim.cmd.write { args = { "myfile.txt" }, bang = true }
-        vim.cmd.write { "myfile.txt", bang = true }
+        vim.cmd { cmd = 'write', args = { 'myfile.txt' }, bang = true }
+        vim.cmd.write { args = { 'myfile.txt' }, bang = true }
+        vim.cmd.write { 'myfile.txt', bang = true }
 
-        -- Ex command :colorscheme blue
-        vim.cmd('colorscheme blue')
-        vim.cmd.colorscheme('blue')
+        -- Ex command :vertical resize +2
+        vim.cmd.resize({ '+2', mods = { vertical = true } })
 <
 
     Parameters: ~
-      • {command}  (`string|table`) Command(s) to execute. If a string,
-                   executes multiple lines of Vimscript at once. In this case,
-                   it is an alias to |nvim_exec2()|, where `opts.output` is
-                   set to false. Thus it works identical to |:source|. If a
-                   table, executes a single command. In this case, it is an
-                   alias to |nvim_cmd()| where `opts` is empty.
+      • {command}  (`string|table`) Command(s) to execute.
+                   • The string form supports multiline Vimscript (alias to
+                     |nvim_exec2()|, behaves like |:source|).
+                   • The table form executes a single command (alias to
+                     |nvim_cmd()|).
 
     See also: ~
       • |ex-cmd-index|
@@ -1541,6 +1542,9 @@ vim.deprecate({name}, {alternative}, {version}, {plugin}, {backtrace})
 
 vim.inspect()                                                  *vim.inspect()*
     Gets a human-readable representation of the given object.
+
+    Overloads: ~
+      • `fun(x: any, opts?: vim.inspect.Opts): string`
 
     Return: ~
         (`string`)
@@ -1750,6 +1754,101 @@ vim.str_utfindex({s}, {encoding}, {index}, {strict_indexing})
     Return: ~
         (`integer`)
 
+
+==============================================================================
+Lua module: vim.system                                        *lua-vim-system*
+
+*vim.SystemCompleted*
+
+    Fields: ~
+      • {code}     (`integer`)
+      • {signal}   (`integer`)
+      • {stdout}?  (`string`) `nil` if stdout is disabled or has a custom
+                   handler.
+      • {stderr}?  (`string`) `nil` if stderr is disabled or has a custom
+                   handler.
+
+*vim.SystemObj*
+
+    Fields: ~
+      • {cmd}         (`string[]`) Command name and args
+      • {pid}         (`integer`) Process ID
+      • {kill}        (`fun(self: vim.SystemObj, signal: integer|string)`) See
+                      |SystemObj:kill()|.
+      • {wait}        (`fun(self: vim.SystemObj, timeout: integer?): vim.SystemCompleted`)
+                      See |SystemObj:wait()|.
+      • {write}       (`fun(self: vim.SystemObj, data: string[]|string?)`) See
+                      |SystemObj:write()|.
+      • {is_closing}  (`fun(self: vim.SystemObj): boolean`) See
+                      |SystemObj:is_closing()|.
+
+
+SystemObj:is_closing()                                *SystemObj:is_closing()*
+    Checks if the process handle is closing or already closed.
+
+    This method returns `true` if the underlying process handle is either
+    `nil` or is in the process of closing. It is useful for determining
+    whether it is safe to perform operations on the process handle.
+
+    Return: ~
+        (`boolean`)
+
+SystemObj:kill({signal})                                    *SystemObj:kill()*
+    Sends a signal to the process.
+
+    The signal can be specified as an integer or as a string.
+
+    Example: >lua
+        local obj = vim.system({'sleep', '10'})
+        obj:kill('TERM') -- sends SIGTERM to the process
+<
+
+    Parameters: ~
+      • {signal}  (`integer|string`) Signal to send to the process.
+
+SystemObj:wait({timeout})                                   *SystemObj:wait()*
+    Waits for the process to complete or until the specified timeout elapses.
+
+    This method blocks execution until the associated process has exited or
+    the optional `timeout` (in milliseconds) has been reached. If the process
+    does not exit before the timeout, it is forcefully terminated with SIGKILL
+    (signal 9), and the exit code is set to 124.
+
+    If no `timeout` is provided, the method will wait indefinitely (or use the
+    timeout specified in the options when the process was started).
+
+    Example: >lua
+        local obj = vim.system({'echo', 'hello'}, { text = true })
+        local result = obj:wait(1000) -- waits up to 1000ms
+        print(result.code, result.signal, result.stdout, result.stderr)
+<
+
+    Parameters: ~
+      • {timeout}  (`integer?`)
+
+    Return: ~
+        (`vim.SystemCompleted`) See |vim.SystemCompleted|.
+
+SystemObj:write({data})                                    *SystemObj:write()*
+    Writes data to the stdin of the process or closes stdin.
+
+    If `data` is a list of strings, each string is written followed by a
+    newline.
+
+    If `data` is a string, it is written as-is.
+
+    If `data` is `nil`, the write side of the stream is shut down and the pipe
+    is closed.
+
+    Example: >lua
+        local obj = vim.system({'cat'}, { stdin = true })
+        obj:write({'hello', 'world'}) -- writes 'hello\nworld\n' to stdin
+        obj:write(nil) -- closes stdin
+<
+
+    Parameters: ~
+      • {data}  (`string[]|string?`)
+
 vim.system({cmd}, {opts}, {on_exit})                            *vim.system()*
     Runs a system command or throws an error if {cmd} cannot be run.
 
@@ -1774,30 +1873,30 @@ vim.system({cmd}, {opts}, {on_exit})                            *vim.system()*
 
     Parameters: ~
       • {cmd}      (`string[]`) Command to execute
-      • {opts}     (`vim.SystemOpts?`) Options:
-                   • cwd: (string) Set the current working directory for the
-                     sub-process.
-                   • env: table<string,string> Set environment variables for
-                     the new process. Inherits the current environment with
-                     `NVIM` set to |v:servername|.
-                   • clear_env: (boolean) `env` defines the job environment
-                     exactly, instead of merging current environment.
-                   • stdin: (string|string[]|boolean) If `true`, then a pipe
+      • {opts}     (`table?`) A table with the following fields:
+                   • {cwd}? (`string`) Set the current working directory for
+                     the sub-process.
+                   • {env}? (`table<string,string|number>`) Set environment
+                     variables for the new process. Inherits the current
+                     environment with `NVIM` set to |v:servername|.
+                   • {clear_env}? (`boolean`) `env` defines the job
+                     environment exactly, instead of merging current
+                     environment. Note: if `env` is `nil`, the current
+                     environment is used but without `NVIM` set.
+                   • {stdin}? (`string|string[]|true`) If `true`, then a pipe
                      to stdin is opened and can be written to via the
-                     `write()` method to SystemObj. If string or string[] then
-                     will be written to stdin and closed. Defaults to `false`.
-                   • stdout: (boolean|function) Handle output from stdout.
-                     When passed as a function must have the signature
-                     `fun(err: string, data: string)`. Defaults to `true`
-                   • stderr: (boolean|function) Handle output from stderr.
-                     When passed as a function must have the signature
-                     `fun(err: string, data: string)`. Defaults to `true`.
-                   • text: (boolean) Handle stdout and stderr as text.
-                     Replaces `\r\n` with `\n`.
-                   • timeout: (integer) Run the command with a time limit.
-                     Upon timeout the process is sent the TERM signal (15) and
-                     the exit code is set to 124.
-                   • detach: (boolean) If true, spawn the child process in a
+                     `write()` method to SystemObj. If `string` or `string[]`
+                     then will be written to stdin and closed.
+                   • {stdout}? (`fun(err:string?, data: string?)|boolean`,
+                     default: `true`) Handle output from stdout.
+                   • {stderr}? (`fun(err:string?, data: string?)|boolean`,
+                     default: `true`) Handle output from stderr.
+                   • {text}? (`boolean`) Handle stdout and stderr as text.
+                     Normalizes line endings by replacing `\r\n` with `\n`.
+                   • {timeout}? (`integer`) Run the command with a time limit
+                     in ms. Upon timeout the process is sent the TERM signal
+                     (15) and the exit code is set to 124.
+                   • {detach}? (`boolean`) Spawn the child process in a
                      detached state - this will make it a process group
                      leader, and will effectively enable the child to keep
                      running after the parent exits. Note that the child
@@ -1805,27 +1904,14 @@ vim.system({cmd}, {opts}, {on_exit})                            *vim.system()*
                      unless the parent process calls |uv.unref()| on the
                      child's process handle.
       • {on_exit}  (`fun(out: vim.SystemCompleted)?`) Called when subprocess
-                   exits. When provided, the command runs asynchronously.
-                   Receives SystemCompleted object, see return of
-                   SystemObj:wait().
+                   exits. When provided, the command runs asynchronously. See
+                   return of SystemObj:wait().
+
+    Overloads: ~
+      • `fun(cmd: string, on_exit: fun(out: vim.SystemCompleted)): vim.SystemObj`
 
     Return: ~
-        (`vim.SystemObj`) Object with the fields:
-        • cmd (string[]) Command name and args
-        • pid (integer) Process ID
-        • wait (fun(timeout: integer|nil): SystemCompleted) Wait for the
-          process to complete. Upon timeout the process is sent the KILL
-          signal (9) and the exit code is set to 124. Cannot be called in
-          |api-fast|.
-          • SystemCompleted is an object with the fields:
-            • code: (integer)
-            • signal: (integer)
-            • stdout: (string), nil if stdout argument is passed
-            • stderr: (string), nil if stderr argument is passed
-        • kill (fun(signal: integer|string))
-        • write (fun(data: string|nil)) Requires `stdin=true`. Pass `nil` to
-          close the stream.
-        • is_closing (fun(): boolean)
+        (`vim.SystemObj`) See |vim.SystemObj|.
 
 
 ==============================================================================
@@ -2066,7 +2152,7 @@ vim.islist({t})                                                 *vim.islist()*
     |rpcrequest()| or |vim.fn|.
 
     Parameters: ~
-      • {t}  (`table?`)
+      • {t}  (`any?`)
 
     Return: ~
         (`boolean`) `true` if list-like table, else `false`.
@@ -2455,6 +2541,10 @@ vim.validate({name}, {value}, {validator}, {optional}, {message})
       • {optional}   (`boolean?`) Argument is optional (may be omitted)
       • {message}    (`string?`) message when validation fails
 
+    Overloads: ~
+      • `fun(name: string, val: any, validator: vim.validate.Validator, message: string)`
+      • `fun(spec: table<string,[any, vim.validate.Validator, boolean|string]>)`
+
 
 ==============================================================================
 Lua module: vim.loader                                            *vim.loader*
@@ -2511,6 +2601,192 @@ vim.loader.reset({path})                                  *vim.loader.reset()*
 
     Parameters: ~
       • {path}  (`string?`) path to reset
+
+
+==============================================================================
+Lua module: vim.pack                                                *vim.pack*
+
+WORK IN PROGRESS built-in plugin manager! Early testing of existing features
+is appreciated, but expect breaking changes without notice.
+
+Manages plugins only in a dedicated *vim.pack-directory* (see |packages|):
+`$XDG_DATA_HOME/nvim/site/pack/core/opt`. Plugin's subdirectory name matches
+plugin's name in specification. It is assumed that all plugins in the
+directory are managed exclusively by `vim.pack`.
+
+Uses Git to manage plugins and requires present `git` executable of at least
+version 2.36. Target plugins should be Git repositories with versions as named
+tags following semver convention `v<major>.<minor>.<patch>`.
+
+Example workflows ~
+
+Basic install and management:
+• Add |vim.pack.add()| call(s) to 'init.lua': >lua
+
+    vim.pack.add({
+      -- Install "plugin1" and use default branch (usually `main` or `master`)
+      'https://github.com/user/plugin1',
+
+      -- Same as above, but using a table (allows setting other options)
+      { src = 'https://github.com/user/plugin1' },
+
+      -- Specify plugin's name (here the plugin will be called "plugin2"
+      -- instead of "generic-name")
+      { src = 'https://github.com/user/generic-name', name = 'plugin2' },
+
+      -- Specify version to follow during install and update
+      {
+        src = 'https://github.com/user/plugin3',
+        -- Version constraint, see |vim.version.range()|
+        version = vim.version.range('1.0'),
+      },
+      {
+        src = 'https://github.com/user/plugin4',
+        -- Git branch, tag, or commit hash
+        version = 'main',
+      },
+    })
+
+    -- Plugin's code can be used directly after `add()`
+    plugin1 = require('plugin1')
+<
+• Restart Nvim (for example, with |:restart|). Plugins that were not yet
+  installed will be available on disk in target state after `add()` call.
+• To update all plugins with new changes:
+  • Execute |vim.pack.update()|. This will download updates from source and
+    show confirmation buffer in a separate tabpage.
+  • Review changes. To confirm all updates execute |:write|. To discard
+    updates execute |:quit|.
+
+Switch plugin's version:
+• Update 'init.lua' for plugin to have desired `version`. Let's say, plugin
+  named 'plugin1' has changed to `vim.version.range('*')`.
+• |:restart|. The plugin's actual state on disk is not yet changed.
+• Execute `vim.pack.update({ 'plugin1' })`.
+• Review changes and either confirm or discard them. If discarded, revert any
+  changes in 'init.lua' as well or you will be prompted again next time you
+  run |vim.pack.update()|.
+
+Freeze plugin from being updated:
+• Update 'init.lua' for plugin to have `version` set to current commit hash.
+  You can get it by running `vim.pack.update({ 'plugin-name' })` and yanking
+  the word describing current state (looks like `abc12345`).
+• |:restart|.
+
+Unfreeze plugin to start receiving updates:
+• Update 'init.lua' for plugin to have `version` set to whichever version you
+  want it to be updated.
+• |:restart|.
+
+Remove plugins from disk:
+• Use |vim.pack.del()| with a list of plugin names to remove. Make sure their
+  specs are not included in |vim.pack.add()| call in 'init.lua' or they will
+  be reinstalled.
+
+Available events to hook into ~
+• *PackChangedPre* - before trying to change plugin's state.
+• *PackChanged* - after plugin's state has changed.
+
+Each event populates the following |event-data| fields:
+• `kind` - one of "install" (install on disk), "update" (update existing
+  plugin), "delete" (delete from disk).
+• `spec` - plugin's specification.
+• `path` - full path to plugin's directory.
+
+
+*vim.pack.Spec*
+
+    Fields: ~
+      • {src}       (`string`) URI from which to install and pull updates. Any
+                    format supported by `git clone` is allowed.
+      • {name}?     (`string`) Name of plugin. Will be used as directory name.
+                    Default: `src` repository name.
+      • {version}?  (`string|vim.VersionRange`) Version to use for install and
+                    updates. Can be:
+                    • `nil` (no value, default) to use repository's default
+                      branch (usually `main` or `master`).
+                    • String to use specific branch, tag, or commit hash.
+                    • Output of |vim.version.range()| to install the
+                      greatest/last semver tag inside the version constraint.
+
+
+vim.pack.add({specs}, {opts})                                 *vim.pack.add()*
+    Add plugin to current session
+    • For each specification check that plugin exists on disk in
+      |vim.pack-directory|:
+      • If exists, do nothin in this step.
+      • If doesn't exist, install it by downloading from `src` into `name`
+        subdirectory (via `git clone`) and update state to match `version`
+        (via `git checkout`).
+    • For each plugin execute |:packadd| making them reachable by Nvim.
+
+    Notes:
+    • Installation is done in parallel, but waits for all to finish before
+      continuing next code execution.
+    • If plugin is already present on disk, there are no checks about its
+      present state. The specified `version` can be not the one actually
+      present on disk. Execute |vim.pack.update()| to synchronize.
+    • Adding plugin second and more times during single session does nothing:
+      only the data from the first adding is registered.
+
+    Parameters: ~
+      • {specs}  (`(string|vim.pack.Spec)[]`) List of plugin specifications.
+                 String item is treated as `src`.
+      • {opts}   (`table?`) A table with the following fields:
+                 • {load}? (`boolean`) Load `plugin/` files and `ftdetect/`
+                   scripts. If `false`, works like `:packadd!`. Default
+                   `true`.
+
+vim.pack.del({names})                                         *vim.pack.del()*
+    Remove plugins from disk
+
+    Parameters: ~
+      • {names}  (`string[]`) List of plugin names to remove from disk. Must
+                 be managed by |vim.pack|, not necessarily already added to
+                 current session.
+
+vim.pack.get()                                                *vim.pack.get()*
+    Get data about all plugins managed by |vim.pack|
+
+    Return: ~
+        (`table[]`) A list of objects with the following fields:
+        • {spec} (`vim.pack.SpecResolved`) A |vim.pack.Spec| with defaults
+          made explicit.
+        • {path} (`string`) Plugin's path on disk.
+        • {active} (`boolean`) Whether plugin was added via |vim.pack.add()|
+          to current session.
+
+vim.pack.update({names}, {opts})                           *vim.pack.update()*
+    Update plugins
+    • Download new changes from source.
+    • Infer update info (current/target state, changelog, etc.).
+    • Depending on `force`:
+      • If `false`, show confirmation buffer. It lists data about all set to
+        update plugins. Pending changes starting with `>` will be applied
+        while the ones starting with `<` will be reverted. It has special
+        in-process LSP server attached to provide more interactive features.
+        Currently supported methods:
+        • 'textDocument/documentSymbol' (`gO` via |lsp-defaults| or
+          |vim.lsp.buf.document_symbol()|) - show structure of the buffer.
+        • 'textDocument/hover' (`K` via |lsp-defaults| or
+          |vim.lsp.buf.hover()|) - show more information at cursor. Like
+          details of particular pending change or newer tag.
+        Execute |:write| to confirm update, execute |:quit| to discard the
+        update.
+      • If `true`, make updates right away.
+
+    Notes:
+    • Every actual update is logged in "nvim-pack.log" file inside "log"
+      |stdpath()|.
+
+    Parameters: ~
+      • {names}  (`string[]?`) List of plugin names to update. Must be managed
+                 by |vim.pack|, not necessarily already added to current
+                 session. Default: names of all plugins added to current
+                 session via |vim.pack.add()|.
+      • {opts}   (`table?`) A table with the following fields:
+                 • {force}? (`boolean`) Whether to skip confirmation and make
+                   updates immediately. Default `false`.
 
 
 ==============================================================================
@@ -2588,18 +2864,18 @@ vim.ui.input({opts}, {on_confirm})                            *vim.ui.input()*
 
     Parameters: ~
       • {opts}        (`table?`) Additional options. See |input()|
-                      • prompt (string|nil) Text of the prompt
-                      • default (string|nil) Default reply to the input
-                      • completion (string|nil) Specifies type of completion
+                      • {prompt}? (`string`) Text of the prompt
+                      • {default}? (`string`) Default reply to the input
+                      • {completion}? (`string`) Specifies type of completion
                         supported for input. Supported types are the same that
                         can be supplied to a user-defined command using the
                         "-complete=" argument. See |:command-completion|
-                      • highlight (function) Function that will be used for
-                        highlighting user inputs.
-      • {on_confirm}  (`function`) ((input|nil) -> ()) Called once the user
-                      confirms or abort the input. `input` is what the user
-                      typed (it might be an empty string if nothing was
-                      entered), or `nil` if the user aborted the dialog.
+                      • {highlight}? (`function`) Function that will be used
+                        for highlighting user inputs.
+      • {on_confirm}  (`fun(input?: string)`) Called once the user confirms or
+                      abort the input. `input` is what the user typed (it
+                      might be an empty string if nothing was entered), or
+                      `nil` if the user aborted the dialog.
 
 vim.ui.open({path}, {opt})                                     *vim.ui.open()*
     Opens `path` with the system default handler (macOS `open`, Windows
@@ -2625,11 +2901,12 @@ vim.ui.open({path}, {opt})                                     *vim.ui.open()*
 
     Parameters: ~
       • {path}  (`string`) Path or URL to open
-      • {opt}   (`{ cmd?: string[] }?`) Options
-                • cmd string[]|nil Command used to open the path or URL.
+      • {opt}   (`table?`) Options
+                • {cmd}? (`string[]`) Command used to open the path or URL.
 
     Return (multiple): ~
-        (`vim.SystemObj?`) Command object, or nil if not found.
+        (`vim.SystemObj?`) Command object, or nil if not found. See
+        |vim.SystemObj|.
         (`string?`) Error message on failure, or nil on success.
 
     See also: ~
@@ -2657,12 +2934,12 @@ vim.ui.select({items}, {opts}, {on_choice})                  *vim.ui.select()*
     Parameters: ~
       • {items}      (`any[]`) Arbitrary items
       • {opts}       (`table`) Additional options
-                     • prompt (string|nil) Text of the prompt. Defaults to
+                     • {prompt}? (`string`) Text of the prompt. Defaults to
                        `Select one of:`
-                     • format_item (function item -> text) Function to format
-                       an individual item from `items`. Defaults to
+                     • {format_item}? (`fun(item: any):string`) Function to
+                       format an individual item from `items`. Defaults to
                        `tostring`.
-                     • kind (string|nil) Arbitrary hint string indicating the
+                     • {kind}? (`string`) Arbitrary hint string indicating the
                        item shape. Plugins reimplementing `vim.ui.select` may
                        wish to use this to infer the structure or semantics of
                        `items`, or the context in which select() was called.
@@ -2681,12 +2958,10 @@ To enable the experimental UI (default opts shown): >lua
     require('vim._extui').enable({
      enable = true, -- Whether to enable or disable the UI.
      msg = { -- Options related to the message module.
-       ---@type 'box'|'cmd' Type of window used to place messages, either in the
-       ---cmdline or in a separate message box window with ephemeral messages.
-       pos = 'cmd',
-       box = { -- Options related to the message box window.
-         timeout = 4000, -- Time a message is visible.
-       },
+       ---@type 'cmd'|'msg' Where to place regular messages, either in the
+       ---cmdline or in a separate ephemeral message window.
+       target = 'cmd',
+       timeout = 4000, -- Time a message is visible in the message window.
      },
     })
 <
@@ -2694,21 +2969,19 @@ To enable the experimental UI (default opts shown): >lua
 There are four separate window types used by this interface:
 • "cmd": The cmdline window; also used for 'showcmd', 'showmode', 'ruler', and
   messages if 'cmdheight' > 0.
-• "box": The message box window; used for messages when 'cmdheight' == 0.
-• "more": The more-prompt window; used for |:messages| and certain messages
-  that should be shown in full.
-• "prompt": The cmdline prompt window; used for prompt messages that expect
-  user input.
+• "msg": The message window; used for messages when 'cmdheight' == 0.
+• "pager": The pager window; used for |:messages| and certain messages that
+  should be shown in full.
+• "dialog": The dialog window; used for prompt messages that expect user
+  input.
 
-These four windows are assigned the "cmdline", "msgbox", "msgmore" and
-"msgprompt" 'filetype' respectively. Use a |FileType| autocommand to configure
-any local options for these windows and their respective buffers.
+These four windows are assigned the "cmd", "msg", "pager" and "dialog"
+'filetype' respectively. Use a |FileType| autocommand to configure any local
+options for these windows and their respective buffers.
 
 Rather than a |hit-enter-prompt|, messages shown in the cmdline area that do
 not fit are appended with a `[+x]` "spill" indicator, where `x` indicates the
 spilled lines. To see the full message, the |g<| command can be used.
-
-
 
 ==============================================================================
 Lua module: vim.filetype                                        *vim.filetype*
@@ -2904,12 +3177,12 @@ vim.keymap.set({mode}, {lhs}, {rhs}, {opts})                *vim.keymap.set()*
 
     Examples: >lua
         -- Map "x" to a Lua function:
-        vim.keymap.set('n', 'x', function() print("real lua function") end)
+        vim.keymap.set('n', 'x', function() print('real lua function') end)
         -- Map "<leader>x" to multiple modes for the current buffer:
         vim.keymap.set({'n', 'v'}, '<leader>x', vim.lsp.buf.references, { buffer = true })
         -- Map <Tab> to an expression (|:map-<expr>|):
         vim.keymap.set('i', '<Tab>', function()
-          return vim.fn.pumvisible() == 1 and "<C-n>" or "<Tab>"
+          return vim.fn.pumvisible() == 1 and '<C-n>' or '<Tab>'
         end, { expr = true })
         -- Map "[%%" to a <Plug> mapping:
         vim.keymap.set('n', '[%%', '<Plug>(MatchitNormalMultiBackward)')
@@ -2989,11 +3262,13 @@ vim.fs.dir({path}, {opts})                                      *vim.fs.dir()*
                 iterate over. The path is first normalized
                 |vim.fs.normalize()|.
       • {opts}  (`table?`) Optional keyword arguments:
-                • depth: integer|nil How deep the traverse (default 1)
-                • skip: (fun(dir_name: string): boolean)|nil Predicate to
+                • {depth}? (`integer`, default: `1`) How deep the traverse.
+                • {skip}? (`fun(dir_name: string): boolean`) Predicate to
                   control traversal. Return false to stop searching the
-                  current directory. Only useful when depth > 1
-                • follow: boolean|nil Follow symbolic links. (default: false)
+                  current directory. Only useful when depth > 1 Return an
+                  iterator over the items located in {path}
+                • {follow}? (`boolean`, default: `false`) Follow symbolic
+                  links.
 
     Return: ~
         (`Iterator`) over items in {path}. Each iteration yields two values:
@@ -3055,7 +3330,7 @@ vim.fs.find({names}, {opts})                                   *vim.fs.find()*
 
                  The function should return `true` if the given item is
                  considered a match.
-      • {opts}   (`table`) Optional keyword arguments:
+      • {opts}   (`table?`) Optional keyword arguments:
                  • {path}? (`string`) Path to begin searching from. If
                    omitted, the |current-directory| is used.
                  • {upward}? (`boolean`, default: `false`) Search upward
@@ -3203,7 +3478,7 @@ vim.fs.root({source}, {marker})                                *vim.fs.root()*
     If the buffer is unnamed (has no backing file) or has a non-empty
     'buftype' then the search begins from Nvim's |current-directory|.
 
-    Example: >lua
+    Examples: >lua
         -- Find the root of a Python project, starting from file 'main.py'
         vim.fs.root(vim.fs.joinpath(vim.env.PWD, 'main.py'), {'pyproject.toml', 'setup.py' })
 
@@ -3214,6 +3489,10 @@ vim.fs.root({source}, {marker})                                *vim.fs.root()*
         vim.fs.root(0, function(name, path)
           return name:match('%.csproj$') ~= nil
         end)
+
+        -- Find the first ancestor directory containing EITHER "stylua.toml" or ".luarc.json"; if
+        -- not found, find the first ancestor containing ".git":
+        vim.fs.root(0, { { 'stylua.toml', '.luarc.json' }, '.git' })
 <
 
     Attributes: ~
@@ -3223,10 +3502,13 @@ vim.fs.root({source}, {marker})                                *vim.fs.root()*
       • {source}  (`integer|string`) Buffer number (0 for current buffer) or
                   file path (absolute or relative to the |current-directory|)
                   to begin the search from.
-      • {marker}  (`string|string[]|fun(name: string, path: string): boolean`)
-                  A marker, or list of markers, to search for. If a function,
-                  the function is called for each evaluated item and should
-                  return true if {name} and {path} are a match.
+      • {marker}  (`(string|string[]|fun(name: string, path: string): boolean)[]|string|fun(name: string, path: string): boolean`)
+                  Filename, function, or list thereof, that decides how to
+                  find the root. To indicate "equal priority", specify items
+                  in a nested list `{ { 'a.txt', 'b.lua' }, … }`. A function
+                  item must return true if `name` and `path` are a match. Each
+                  item (which may itself be a nested list) is evaluated
+                  in-order against all ancestors, until a match is found.
 
     Return: ~
         (`string?`) Directory path containing one of the given markers, or nil
@@ -3887,6 +4169,7 @@ versions (1.2.3-rc1) are not matched. >
     >1.2.3            greater than 1.2.3
     <1.2.3            before 1.2.3
     >=1.2.3           at least 1.2.3
+    <=1.2.3           at most 1.2.3
     ~1.2.3            is >=1.2.3 <1.3.0       "reasonably close to 1.2.3"
     ^1.2.3            is >=1.2.3 <2.0.0       "compatible with 1.2.3"
     ^0.2.3            is >=0.2.3 <0.3.0       (0.x.x is special)
@@ -3901,7 +4184,7 @@ versions (1.2.3-rc1) are not matched. >
     *                 any version
     x                 same
 
-    1.2.3 - 2.3.4     is >=1.2.3 <=2.3.4
+    1.2.3 - 2.3.4     is >=1.2.3 <2.3.4
 
     Partial right: missing pieces treated as x (2.3 => 2.3.x).
     1.2.3 - 2.3       is >=1.2.3 <2.4.0
@@ -3911,6 +4194,43 @@ versions (1.2.3-rc1) are not matched. >
     1.2 - 2.3.0       is 1.2.0 - 2.3.0
 <
 
+
+*vim.VersionRange*
+
+    Fields: ~
+      • {from}  (`vim.Version`)
+      • {to}?   (`vim.Version`)
+      • {has}   (`fun(self: vim.VersionRange, version: string|vim.Version): boolean`)
+                See |VersionRange:has()|.
+
+
+VersionRange:has({version})                               *VersionRange:has()*
+    Check if a version is in the range (inclusive `from`, exclusive `to`).
+
+    Example: >lua
+        local r = vim.version.range('1.0.0 - 2.0.0')
+        print(r:has('1.9.9'))       -- true
+        print(r:has('2.0.0'))       -- false
+        print(r:has(vim.version())) -- check against current Nvim version
+<
+
+    Or use cmp(), le(), lt(), ge(), gt(), and/or eq() to compare a version
+    against `.to` and `.from` directly: >lua
+        local r = vim.version.range('1.0.0 - 2.0.0') -- >=1.0, <2.0
+        print(vim.version.ge({1,0,3}, r.from) and vim.version.lt({1,0,3}, r.to))
+<
+
+    Attributes: ~
+        Since: 0.9.0
+
+    Parameters: ~
+      • {version}  (`string|vim.Version`)
+
+    Return: ~
+        (`boolean`)
+
+    See also: ~
+      • https://github.com/npm/node-semver#ranges
 
 vim.version.cmp({v1}, {v2})                                *vim.version.cmp()*
     Parses and compares two version objects (the result of
@@ -3982,6 +4302,21 @@ vim.version.gt({v1}, {v2})                                  *vim.version.gt()*
     Return: ~
         (`boolean`)
 
+vim.version.intersect({r1}, {r2})                    *vim.version.intersect()*
+    WARNING: This feature is experimental/unstable.
+
+    Computes the common range shared by the given ranges.
+
+    Parameters: ~
+      • {r1}  (`vim.VersionRange`) First range to intersect. See
+              |vim.VersionRange|.
+      • {r2}  (`vim.VersionRange`) Second range to intersect. See
+              |vim.VersionRange|.
+
+    Return: ~
+        (`vim.VersionRange?`) Maximal range that is present inside both `r1`
+        and `r2`. `nil` if such range does not exist. See |vim.VersionRange|.
+
 vim.version.last({versions})                              *vim.version.last()*
     TODO: generalize this, move to func.lua
 
@@ -4029,43 +4364,21 @@ vim.version.parse({version}, {opts})                     *vim.version.parse()*
 
     Parameters: ~
       • {version}  (`string`) Version string to parse.
-      • {opts}     (`table?`) Optional keyword arguments:
-                   • strict (boolean): Default false. If `true`, no coercion
-                     is attempted on input not conforming to semver v2.0.0. If
-                     `false`, `parse()` attempts to coerce input such as
-                     "1.0", "0-x", "tmux 3.2a" into valid versions.
+      • {opts}     (`table?`) Options for parsing.
+                   • {strict}? (`boolean`, default: `false`) If `true`, no
+                     coercion is attempted on input not conforming to semver
+                     v2.0.0. If `false`, `parse()` attempts to coerce input
+                     such as "1.0", "0-x", "tmux 3.2a" into valid versions.
 
     Return: ~
-        (`vim.Version?`) parsed_version Version object or `nil` if input is
-        invalid.
+        (`vim.Version?`) `Version` object or `nil` if input is invalid.
 
     See also: ~
       • https://semver.org/spec/v2.0.0.html
 
 vim.version.range({spec})                                *vim.version.range()*
-    Parses a semver |version-range| "spec" and returns a range object: >
-        {
-          from: Version
-          to: Version
-          has(v: string|Version)
-        }
-<
-
-    `:has()` checks if a version is in the range (inclusive `from`, exclusive
-    `to`).
-
-    Example: >lua
-        local r = vim.version.range('1.0.0 - 2.0.0')
-        print(r:has('1.9.9'))       -- true
-        print(r:has('2.0.0'))       -- false
-        print(r:has(vim.version())) -- check against current Nvim version
-<
-
-    Or use cmp(), le(), lt(), ge(), gt(), and/or eq() to compare a version
-    against `.to` and `.from` directly: >lua
-        local r = vim.version.range('1.0.0 - 2.0.0') -- >=1.0, <2.0
-        print(vim.version.ge({1,0,3}, r.from) and vim.version.lt({1,0,3}, r.to))
-<
+    Parses a semver |version-range| "spec" and returns |vim.VersionRange|
+    object:
 
     Attributes: ~
         Since: 0.9.0
@@ -4074,13 +4387,7 @@ vim.version.range({spec})                                *vim.version.range()*
       • {spec}  (`string`) Version range "spec"
 
     Return: ~
-        (`table?`) A table with the following fields:
-        • {from} (`vim.Version`)
-        • {to}? (`vim.Version`)
-        • {has} (`fun(self: vim.VersionRange, version: string|vim.Version)`)
-
-    See also: ~
-      • https://github.com/npm/node-semver#ranges
+        (`vim.VersionRange?`) See |vim.VersionRange|.
 
 
 ==============================================================================
@@ -4503,17 +4810,24 @@ Iter:rskip({n})                                                 *Iter:rskip()*
         (`Iter`)
 
 Iter:skip({n})                                                   *Iter:skip()*
-    Skips `n` values of an iterator pipeline.
+    Skips `n` values of an iterator pipeline, or all values satisfying a
+    predicate of a |list-iterator|.
 
     Example: >lua
 
         local it = vim.iter({ 3, 6, 9, 12 }):skip(2)
         it:next()
         -- 9
+
+        local function pred(x) return x < 10 end
+        local it2 = vim.iter({ 3, 6, 9, 12 }):skip(pred)
+        it2:next()
+        -- 12
 <
 
     Parameters: ~
-      • {n}  (`number`) Number of values to skip.
+      • {n}  (`integer|fun(...):boolean`) Number of values to skip or a
+             predicate.
 
     Return: ~
         (`Iter`)
@@ -4531,7 +4845,8 @@ Iter:slice({first}, {last})                                     *Iter:slice()*
         (`Iter`)
 
 Iter:take({n})                                                   *Iter:take()*
-    Transforms an iterator to yield only the first n values.
+    Transforms an iterator to yield only the first n values, or all values
+    satisfying a predicate.
 
     Example: >lua
         local it = vim.iter({ 1, 2, 3, 4 }):take(2)
@@ -4541,10 +4856,18 @@ Iter:take({n})                                                   *Iter:take()*
         -- 2
         it:next()
         -- nil
+
+        local function pred(x) return x < 2 end
+        local it2 = vim.iter({ 1, 2, 3, 4 }):take(pred)
+        it2:next()
+        -- 1
+        it2:next()
+        -- nil
 <
 
     Parameters: ~
-      • {n}  (`integer`)
+      • {n}  (`integer|fun(...):boolean`) Number of values to take or a
+             predicate.
 
     Return: ~
         (`Iter`)
@@ -4684,7 +5007,7 @@ vim.text.indent({size}, {text}, {opts})                    *vim.text.indent()*
     Parameters: ~
       • {size}  (`integer`) Number of spaces.
       • {text}  (`string`) Text to indent.
-      • {opts}  (`{ expandtab?: number }?`)
+      • {opts}  (`{ expandtab?: integer }?`)
 
     Return (multiple): ~
         (`string`) Indented text.

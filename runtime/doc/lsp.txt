@@ -81,14 +81,17 @@ the options are empty or were set by the builtin runtime (ftplugin) files. The
 options are not restored when the LSP client is stopped or detached.
 
 GLOBAL DEFAULTS
-                                          *grr* *gra* *grn* *gri* *i_CTRL-S*
+                                *grr* *gra* *grn* *gri* *grt* *i_CTRL-S* *an* *in*
 These GLOBAL keymaps are created unconditionally when Nvim starts:
 - "grn" is mapped in Normal mode to |vim.lsp.buf.rename()|
 - "gra" is mapped in Normal and Visual mode to |vim.lsp.buf.code_action()|
 - "grr" is mapped in Normal mode to |vim.lsp.buf.references()|
 - "gri" is mapped in Normal mode to |vim.lsp.buf.implementation()|
+- "grt" is mapped in Normal mode to |vim.lsp.buf.type_definition()|
 - "gO" is mapped in Normal mode to |vim.lsp.buf.document_symbol()|
 - CTRL-S is mapped in Insert mode to |vim.lsp.buf.signature_help()|
+- "an" and "in" are mapped in Visual mode to outer and inner incremental
+  selections, respectively, using |vim.lsp.buf.selection_range()|
 
 BUFFER-LOCAL DEFAULTS
 - 'omnifunc' is set to |vim.lsp.omnifunc()|, use |i_CTRL-X_CTRL-O| to trigger
@@ -714,8 +717,10 @@ Lua module: vim.lsp                                                 *lsp-core*
 
 
     Fields: ~
-      • {cmd}?           (`string[]|fun(dispatchers: vim.lsp.rpc.Dispatchers): vim.lsp.rpc.PublicClient`)
-                         See `cmd` in |vim.lsp.ClientConfig|.
+      • {cmd}?           (`string[]|fun(dispatchers: vim.lsp.rpc.Dispatchers, config: vim.lsp.ClientConfig): vim.lsp.rpc.PublicClient`)
+                         See `cmd` in |vim.lsp.ClientConfig|. See also
+                         `reuse_client` to dynamically decide (per-buffer)
+                         when `cmd` should be re-invoked.
       • {filetypes}?     (`string[]`) Filetypes the client will attach to, if
                          activated by `vim.lsp.enable()`. If not provided, the
                          client will attach to all filetypes.
@@ -854,16 +859,13 @@ buf_request_sync({bufnr}, {method}, {params}, {timeout_ms})
         describing the failure reason, and `result` is nil.
 
 commands                                                    *vim.lsp.commands*
-    Registry (a table) for client-side handlers, for custom server-commands
-    that are not in the LSP specification.
+    Map of client-defined handlers implementing custom (off-spec) commands
+    which a server may invoke. Each key is a unique command name; each value
+    is a function which is called when an LSP action (code action, code
+    lenses, …) requests it by name.
 
-    If an LSP response contains a command which is not found in
-    `vim.lsp.commands`, the command will be executed via the LSP server using
-    `workspace/executeCommand`.
-
-    Each key in the table is a unique command name, and each value is a
-    function which is called when an LSP action (code action, code lenses,
-    …) triggers the command.
+    If an LSP response requests a command not defined client-side, Nvim will
+    forward it to the server as `workspace/executeCommand`.
     • Argument 1 is the `Command`: >
       Command
       title: String
@@ -1069,7 +1071,7 @@ get_client_by_id({client_id})                     *vim.lsp.get_client_by_id()*
       • {client_id}  (`integer`) client id
 
     Return: ~
-        (`vim.lsp.Client?`) client rpc object
+        (`vim.lsp.Client?`) client rpc object. See |vim.lsp.Client|.
 
 get_clients({filter})                                  *vim.lsp.get_clients()*
     Get active clients.
@@ -1279,7 +1281,8 @@ Lua module: vim.lsp.client                                        *lsp-client*
       • {id}                    (`integer`) The id allocated to the client.
       • {initialized}           (`true?`)
       • {name}                  (`string`) See |vim.lsp.ClientConfig|.
-      • {offset_encoding}       (`string`) See |vim.lsp.ClientConfig|.
+      • {offset_encoding}       (`'utf-8'|'utf-16'|'utf-32'`) See
+                                |vim.lsp.ClientConfig|.
       • {progress}              (`vim.lsp.Client.Progress`) A ring buffer
                                 (|vim.ringbuf()|) containing progress messages
                                 sent by the server. See
@@ -1354,16 +1357,16 @@ Lua module: vim.lsp.client                                        *lsp-client*
                                • Note: To send an empty dictionary use
                                  |vim.empty_dict()|, else it will be encoded
                                  as an array.
-      • {cmd}                  (`string[]|fun(dispatchers: vim.lsp.rpc.Dispatchers): vim.lsp.rpc.PublicClient`)
-                               command string[] that launches the language
+      • {cmd}                  (`string[]|fun(dispatchers: vim.lsp.rpc.Dispatchers, config: vim.lsp.ClientConfig): vim.lsp.rpc.PublicClient`)
+                               Command `string[]` that launches the language
                                server (treated as in |jobstart()|, must be
                                absolute or on `$PATH`, shell constructs like
                                "~" are not expanded), or function that creates
                                an RPC client. Function receives a
-                               `dispatchers` table and returns a table with
-                               member functions `request`, `notify`,
-                               `is_closing` and `terminate`. See
-                               |vim.lsp.rpc.request()|,
+                               `dispatchers` table and the resolved `config`,
+                               and must return a table with member functions
+                               `request`, `notify`, `is_closing` and
+                               `terminate`. See |vim.lsp.rpc.request()|,
                                |vim.lsp.rpc.notify()|. For TCP there is a
                                builtin RPC client factory:
                                |vim.lsp.rpc.connect()|
@@ -1375,13 +1378,8 @@ Lua module: vim.lsp.client                                        *lsp-client*
                                    { PORT = 8080; HOST = '0.0.0.0'; }
 <
       • {commands}?            (`table<string,fun(command: lsp.Command, ctx: table)>`)
-                               Client commands. Map of command names to
-                               user-defined functions. Commands passed to
-                               `start()` take precedence over the global
-                               command registry. Each key must be a unique
-                               command name, and the value is a function which
-                               is called if any LSP action (code action, code
-                               lenses, …) triggers the command.
+                               Map of client-defined commands overriding the
+                               global |vim.lsp.commands|.
       • {detached}?            (`boolean`, default: `true`) Daemonize the
                                server process so that it runs in a separate
                                process group from Nvim. Nvim will shutdown the
@@ -1832,9 +1830,22 @@ rename({new_name}, {opts})                              *vim.lsp.buf.rename()*
                       ones where client.name matches this field.
                     • {bufnr}? (`integer`) (default: current buffer)
 
+selection_range({direction})                   *vim.lsp.buf.selection_range()*
+    Perform an incremental selection at the cursor position based on ranges
+    given by the LSP. The `direction` parameter specifies the number of times
+    to expand the selection. Negative values will shrink the selection.
+
+    Parameters: ~
+      • {direction}  (`integer`)
+
 signature_help({config})                        *vim.lsp.buf.signature_help()*
     Displays signature information about the symbol under the cursor in a
-    floating window.
+    floating window. Allows cycling through signature overloads with `<C-s>`,
+    which can be remapped via `<Plug>(nvim.lsp.ctrl-s)`
+
+    Example: >lua
+        vim.keymap.set('n', '<C-b>', '<Plug>(nvim.lsp.ctrl-s)')
+<
 
     Parameters: ~
       • {config}  (`vim.lsp.buf.signature_help.Opts?`) See
@@ -1854,6 +1865,18 @@ typehierarchy({kind})                            *vim.lsp.buf.typehierarchy()*
     Parameters: ~
       • {kind}  (`"subtypes"|"supertypes"`)
 
+workspace_diagnostics({opts})            *vim.lsp.buf.workspace_diagnostics()*
+    Request workspace-wide diagnostics.
+
+    Parameters: ~
+      • {opts}  (`table?`) A table with the following fields:
+                • {client_id}? (`integer`) Only request diagnostics from the
+                  indicated client. If nil, the request is sent to all
+                  clients.
+
+    See also: ~
+      • https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_dagnostics
+
 workspace_symbol({query}, {opts})             *vim.lsp.buf.workspace_symbol()*
     Lists all symbols in the current workspace in the quickfix window.
 
@@ -1868,6 +1891,13 @@ workspace_symbol({query}, {opts})             *vim.lsp.buf.workspace_symbol()*
 
 ==============================================================================
 Lua module: vim.lsp.diagnostic                                *lsp-diagnostic*
+
+This module provides functionality for requesting LSP diagnostics for a
+document/workspace and populating them using |vim.Diagnostic|s.
+`DiagnosticRelatedInformation` is supported: it is included in the window
+shown by |vim.diagnostic.open_float()|. When the cursor is on a line with
+related information, |gf| jumps to the problem location.
+
 
 from({diagnostics})                                *vim.lsp.diagnostic.from()*
     Converts the input `vim.Diagnostic`s to LSP diagnostics.
@@ -2157,6 +2187,7 @@ get_at_pos({bufnr}, {row}, {col})
         fields:
         • line (integer) line number, 0-based
         • start_col (integer) start column, 0-based
+        • end_line (integer) end line number, 0-based
         • end_col (integer) end column, 0-based
         • type (string) token type as string, e.g. "variable"
         • modifiers (table) token modifiers as a set. E.g., { static = true,
@@ -2220,6 +2251,9 @@ stop({bufnr}, {client_id})                    *vim.lsp.semantic_tokens.stop()*
 
 ==============================================================================
 Lua module: vim.lsp.document_color                        *lsp-document_color*
+
+color_presentation()             *vim.lsp.document_color.color_presentation()*
+    Select from a list of presentations for the color under the cursor.
 
 enable({enable}, {bufnr}, {opts})            *vim.lsp.document_color.enable()*
     Enables document highlighting from the given language client in the given
@@ -2303,7 +2337,8 @@ Lua module: vim.lsp.util                                            *lsp-util*
 
 
                                      *vim.lsp.util.apply_text_document_edit()*
-apply_text_document_edit({text_document_edit}, {index}, {position_encoding})
+apply_text_document_edit({text_document_edit}, {index}, {position_encoding},
+                         {change_annotations})
     Applies a `TextDocumentEdit`, which is a list of changes to a single
     document.
 
@@ -2312,18 +2347,21 @@ apply_text_document_edit({text_document_edit}, {index}, {position_encoding})
       • {index}               (`integer?`) Optional index of the edit, if from
                               a list of edits (or nil, if not from a list)
       • {position_encoding}   (`'utf-8'|'utf-16'|'utf-32'?`)
+      • {change_annotations}  (`table<string, lsp.ChangeAnnotation>?`)
 
     See also: ~
       • https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocumentEdit
 
                                              *vim.lsp.util.apply_text_edits()*
-apply_text_edits({text_edits}, {bufnr}, {position_encoding})
+apply_text_edits({text_edits}, {bufnr}, {position_encoding},
+                 {change_annotations})
     Applies a list of text edits to a buffer.
 
     Parameters: ~
-      • {text_edits}         (`lsp.TextEdit[]`)
-      • {bufnr}              (`integer`) Buffer id
-      • {position_encoding}  (`'utf-8'|'utf-16'|'utf-32'`)
+      • {text_edits}          (`(lsp.TextEdit|lsp.AnnotatedTextEdit)[]`)
+      • {bufnr}               (`integer`) Buffer id
+      • {position_encoding}   (`'utf-8'|'utf-16'|'utf-32'`)
+      • {change_annotations}  (`table<string, lsp.ChangeAnnotation>?`)
 
     See also: ~
       • https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textEdit
@@ -2546,7 +2584,7 @@ make_workspace_params({added}, {removed})
       • {removed}  (`lsp.WorkspaceFolder[]`)
 
     Return: ~
-        (`lsp.WorkspaceFoldersChangeEvent`)
+        (`lsp.DidChangeWorkspaceFoldersParams`)
 
                                         *vim.lsp.util.open_floating_preview()*
 open_floating_preview({contents}, {syntax}, {opts})

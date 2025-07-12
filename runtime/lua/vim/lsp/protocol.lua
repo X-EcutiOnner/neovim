@@ -144,6 +144,11 @@ local constants = {
     TypeParameter = 26,
   },
 
+  -- Extra annotations that tweak the rendering of a symbol.
+  SymbolTag = {
+    Deprecated = 1,
+  },
+
   -- Represents reasons why a text document is saved.
   TextDocumentSaveReason = {
     -- Manually triggered, e.g. by the user pressing save, by starting debugging,
@@ -162,14 +167,13 @@ local constants = {
     MethodNotFound = -32601,
     InvalidParams = -32602,
     InternalError = -32603,
-    serverErrorStart = -32099,
-    serverErrorEnd = -32000,
     ServerNotInitialized = -32002,
     UnknownErrorCode = -32001,
     -- Defined by the protocol.
     RequestCancelled = -32800,
     ContentModified = -32801,
     ServerCancelled = -32802,
+    RequestFailed = -32803,
   },
 
   -- Describes the content type that a client supports in various
@@ -329,6 +333,7 @@ end
 --- capabilities.
 --- @return lsp.ClientCapabilities
 function protocol.make_client_capabilities()
+  ---@type lsp.ClientCapabilities
   return {
     general = {
       positionEncodings = {
@@ -340,6 +345,11 @@ function protocol.make_client_capabilities()
     textDocument = {
       diagnostic = {
         dynamicRegistration = false,
+        tagSupport = {
+          valueSet = get_value_set(constants.DiagnosticTag),
+        },
+        dataSupport = true,
+        relatedInformation = true,
       },
       inlayHint = {
         dynamicRegistration = true,
@@ -399,8 +409,7 @@ function protocol.make_client_capabilities()
         },
 
         overlappingTokenSupport = true,
-        -- TODO(jdrouhard): Add support for this
-        multilineTokenSupport = false,
+        multilineTokenSupport = true,
         serverCancelSupport = false,
         augmentsSyntaxTokens = true,
       },
@@ -426,6 +435,8 @@ function protocol.make_client_capabilities()
         resolveSupport = {
           properties = { 'edit', 'command' },
         },
+        disabledSupport = true,
+        honorsChangeAnnotations = true,
       },
       codeLens = {
         dynamicRegistration = false,
@@ -436,6 +447,9 @@ function protocol.make_client_capabilities()
       foldingRange = {
         dynamicRegistration = false,
         lineFoldingOnly = true,
+        foldingRangeKind = {
+          valueSet = { 'comment', 'imports', 'region' },
+        },
         foldingRange = {
           collapsedText = true,
         },
@@ -517,10 +531,14 @@ function protocol.make_client_capabilities()
           valueSet = get_value_set(constants.SymbolKind),
         },
         hierarchicalDocumentSymbolSupport = true,
+        tagSupport = {
+          valueSet = get_value_set(constants.SymbolTag),
+        },
       },
       rename = {
         dynamicRegistration = true,
         prepareSupport = true,
+        honorsChangeAnnotations = true,
       },
       publishDiagnostics = {
         relatedInformation = true,
@@ -534,6 +552,9 @@ function protocol.make_client_capabilities()
       },
       colorProvider = {
         dynamicRegistration = true,
+      },
+      selectionRange = {
+        dynamicRegistration = false,
       },
     },
     workspace = {
@@ -552,6 +573,7 @@ function protocol.make_client_capabilities()
       workspaceEdit = {
         resourceOperations = { 'rename', 'create', 'delete' },
         normalizesLineEndings = true,
+        changeAnnotationSupport = { groupsOnLabel = true },
       },
       semanticTokens = {
         refreshSupport = true,
@@ -565,6 +587,9 @@ function protocol.make_client_capabilities()
       },
       inlayHint = {
         refreshSupport = true,
+      },
+      workspace = {
+        refreshSupport = false,
       },
     },
     experimental = nil,

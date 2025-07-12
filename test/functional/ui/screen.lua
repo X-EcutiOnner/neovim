@@ -81,7 +81,8 @@ end
 --- @field cmdline table<integer,table>
 --- @field cmdline_hide_level integer?
 --- @field cmdline_block table[]
---- @field hl_groups table<string,integer>
+--- @field hl_groups table<string,integer> Highlight group to attr ID map
+--- @field hl_names table<integer,string> Highlight ID to group map
 --- @field messages table<integer,table>
 --- @field private _cursor {grid:integer,row:integer,col:integer}
 --- @field private _grids table<integer,test.functional.ui.screen.Grid>
@@ -154,6 +155,11 @@ local function _init_colors()
     [29] = { foreground = Screen.colors.SlateBlue, bold = true },
     [30] = { background = Screen.colors.Red },
   }
+
+  Screen._global_hl_names = {}
+  for group in pairs(n.api.nvim_get_hl(0, {})) do
+    Screen._global_hl_names[n.api.nvim_get_hl_id_by_name(group)] = group
+  end
 end
 
 --- @class test.functional.ui.screen.Opts
@@ -210,6 +216,7 @@ function Screen.new(width, height, options, session)
     showcmd = {},
     ruler = {},
     hl_groups = {},
+    hl_names = vim.deepcopy(Screen._global_hl_names),
     _default_attr_ids = nil,
     mouse_enabled = true,
     _attrs = {},
@@ -586,6 +593,7 @@ function Screen:expect(expected, attr_ids, ...)
             after = after:sub(e + 1)
           end
         end
+        pat = pat and '^' .. pat .. '$'
         if row ~= actual_rows[i] and (not pat or not actual_rows[i]:match(pat)) then
           msg_expected_rows[i] = '*' .. msg_expected_rows[i]
           if i <= #actual_rows then
@@ -699,6 +707,7 @@ screen:redraw_debug() to show all intermediate screen states.]]
     self.cmdline[self.cmdline_hide_level] = nil
     self.cmdline_hide_level = nil
   end
+  self.messages, self.msg_history = {}, {}
 end
 
 function Screen:expect_unchanged(intermediate, waittime_ms)
@@ -1341,12 +1350,12 @@ function Screen:_handle_cmdline_show(content, pos, firstc, prompt, indent, level
     firstc = firstc,
     prompt = prompt,
     indent = indent,
-    hl_id = prompt and hl_id,
+    hl = hl_id,
   }
 end
 
 function Screen:_handle_cmdline_hide(level, abort)
-  self.cmdline[level] = { abort = abort }
+  self.cmdline[level] = abort and { abort = abort } or nil
   self.cmdline_hide_level = level
 end
 
@@ -1407,12 +1416,8 @@ function Screen:_handle_msg_ruler(msg)
   self.ruler = msg
 end
 
-function Screen:_handle_msg_history_show(entries)
-  self.msg_history = entries
-end
-
-function Screen:_handle_msg_history_clear()
-  self.msg_history = {}
+function Screen:_handle_msg_history_show(entries, prev_cmd)
+  self.msg_history = { entries, prev_cmd }
 end
 
 function Screen:_clear_block(grid, top, bot, left, right)
@@ -1487,6 +1492,13 @@ function Screen:_row_repr(gridnr, rownr, attr_state, cursor)
   return table.concat(rv, '') --:gsub('%s+$', '')
 end
 
+local function hl_id_to_name(self, id)
+  if id and id > 0 and not self.hl_names[id] then
+    self.hl_names[id] = n.fn.synIDattr(id, 'name')
+  end
+  return id and self.hl_names[id] or nil
+end
+
 function Screen:_extstate_repr(attr_state)
   local cmdline = {}
   for i, entry in pairs(self.cmdline) do
@@ -1494,6 +1506,7 @@ function Screen:_extstate_repr(attr_state)
     if entry.content ~= nil then
       entry.content = self:_chunks_repr(entry.content, attr_state)
     end
+    entry.hl = hl_id_to_name(self, entry.hl)
     cmdline[i] = entry
   end
 
@@ -1512,9 +1525,13 @@ function Screen:_extstate_repr(attr_state)
     }
   end
 
-  local msg_history = {}
-  for i, entry in ipairs(self.msg_history) do
-    msg_history[i] = { kind = entry[1], content = self:_chunks_repr(entry[2], attr_state) }
+  local msg_history = { prev_cmd = self.msg_history[2] or nil }
+  for i, entry in ipairs(self.msg_history[1] or {}) do
+    msg_history[i] = {
+      kind = entry[1],
+      content = self:_chunks_repr(entry[2], attr_state),
+      append = entry[3] or nil,
+    }
   end
 
   local win_viewport = (next(self.win_viewport) and self.win_viewport) or nil
@@ -1550,7 +1567,8 @@ function Screen:_chunks_repr(chunks, attr_state)
       attrs = hl
     end
     local attr_id = self:_get_attr_id(attr_state, attrs, hl)
-    repr_chunks[i] = { text, attr_id, attr_id and id or nil }
+    repr_chunks[i] = { text, attr_id }
+    repr_chunks[i][#repr_chunks[i] + 1] = hl_id_to_name(self, id)
   end
   return repr_chunks
 end

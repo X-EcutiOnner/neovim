@@ -903,10 +903,10 @@ local options = {
           help		help buffer (do not set this manually)
           nofile	buffer is not related to a file, will not be written
           nowrite	buffer will not be written
+          prompt	buffer where only the last section can be edited, for
+        		use by plugins. |prompt-buffer|
           quickfix	list of errors |:cwindow| or locations |:lwindow|
           terminal	|terminal-emulator| buffer
-          prompt	buffer where only the last line can be edited, meant
-        		to be used by a plugin, see |prompt-buffer|
 
         This option is used together with 'bufhidden' and 'swapfile' to
         specify special kinds of buffers.   See |special-buffers|.
@@ -949,6 +949,21 @@ local options = {
       short_desc = N_('special type of buffer'),
       type = 'string',
       varname = 'p_bt',
+    },
+    {
+      defaults = 0,
+      desc = [=[
+        Sets a buffer "busy" status. Indicated in the default statusline.
+        When busy status is larger then 0 busy flag is shown in statusline.
+        The semantics of "busy" are arbitrary, typically decided by the plugin that owns the buffer.
+      ]=],
+      full_name = 'busy',
+      redraw = { 'statuslines' },
+      noglob = true,
+      scope = { 'buf' },
+      short_desc = N_('buffer is busy'),
+      type = 'number',
+      varname = 'p_busy',
     },
     {
       abbreviation = 'cmp',
@@ -1444,15 +1459,12 @@ local options = {
         	name of a function or a |Funcref|.  For |Funcref| values,
         	spaces must be escaped with a backslash ('\'), and commas with
         	double backslashes ('\\') (see |option-backslash|).
+        	Unlike other sources, functions can provide completions starting
+        	from a non-keyword character before the cursor, and their
+        	start position for replacing text may differ from other sources.
         	If the Dict returned by the {func} includes {"refresh": "always"},
         	the function will be invoked again whenever the leading text
         	changes.
-        	Completion matches are always inserted at the keyword
-        	boundary, regardless of the column returned by {func} when
-        	a:findstart is 1.  This ensures compatibility with other
-        	completion sources.
-        	To make further modifications to the inserted text, {func}
-        	can make use of |CompleteDonePre|.
         	If generating matches is potentially slow, |complete_check()|
         	should be used to avoid blocking and preserve editor
         	responsiveness.
@@ -1640,6 +1652,9 @@ local options = {
            preview  Show extra information about the currently selected
         	    completion in the preview window.  Only works in
         	    combination with "menu" or "menuone".
+
+        This option does not apply to |cmdline-completion|. See 'wildoptions'
+        for that.
       ]=],
       full_name = 'completeopt',
       list = 'onecomma',
@@ -1999,6 +2014,13 @@ local options = {
         		character, the cursor won't move. When not included,
         		the cursor would skip over it and jump to the
         		following occurrence.
+        							*cpo-~*
+        	~	When included, don't resolve symbolic links when
+        		changing directory with |:cd|, |:lcd|, or |:tcd|.
+        		This preserves the symbolic link path in buffer names
+        		and when displaying the current directory.  When
+        		excluded (default), symbolic links are resolved to
+        		their target paths.
         							*cpo-_*
         	_	When using |cw| on a word, do not include the
         		whitespace following the word in the motion.
@@ -2749,6 +2771,11 @@ local options = {
         Similar to 'eventignore' but applies to a particular window and its
         buffers, for which window and buffer related autocommands can be
         ignored indefinitely without affecting the global 'eventignore'.
+
+        Note: The following events are considered to happen outside of a
+        window context and thus cannot be ignored by 'eventignorewin':
+
+        	<PLACEHOLDER>
       ]=],
       expand_cb = 'expand_set_eventignore',
       full_name = 'eventignorewin',
@@ -2783,6 +2810,8 @@ local options = {
 
         Unset 'exrc' to stop further searching of 'exrc' files in parent
         directories, similar to |editorconfig.root|.
+
+        To get its own location, Lua exrc files can use |debug.getinfo()|.
 
         Compare 'exrc' to |editorconfig|:
         - 'exrc' can execute any code; editorconfig only specifies settings.
@@ -5627,6 +5656,22 @@ local options = {
       varname = 'p_mmp',
     },
     {
+      abbreviation = 'msc',
+      defaults = 999,
+      desc = [=[
+        Maximum number of matches shown for the search count status |shm-S|
+        When the number of matches exceeds this value, Vim shows ">" instead
+        of the exact count to keep searching fast.
+        Note: larger values may impact performance.
+        The value must be between 1 and 9999.
+      ]=],
+      full_name = 'maxsearchcount',
+      scope = { 'global' },
+      short_desc = N_('maximum number for the search count feature'),
+      type = 'number',
+      varname = 'p_msc',
+    },
+    {
       abbreviation = 'mis',
       defaults = 25,
       desc = [=[
@@ -7855,7 +7900,8 @@ local options = {
         	is shown), the "search hit BOTTOM, continuing at TOP" and
         	"search hit TOP, continuing at BOTTOM" messages are only
         	indicated by a "W" (Mnemonic: Wrapped) letter before the
-        	search count statistics.
+        	search count statistics.  The maximum limit can be set with
+        	the 'maxsearchcount' option.
 
         This gives you the opportunity to avoid that a change between buffers
         requires you to hit <Enter>, but still gives as useful a message as
@@ -8182,16 +8228,13 @@ local options = {
       abbreviation = 'sta',
       defaults = true,
       desc = [=[
-        When on, a <Tab> in front of a line inserts blanks according to
-        'shiftwidth'.  'tabstop' or 'softtabstop' is used in other places.  A
-        <BS> will delete a 'shiftwidth' worth of space at the start of the
-        line.
-        When off, a <Tab> always inserts blanks according to 'tabstop' or
-        'softtabstop'.  'shiftwidth' is only used for shifting text left or
-        right |shift-left-right|.
-        What gets inserted (a <Tab> or spaces) depends on the 'expandtab'
-        option.  Also see |ins-expandtab|.  When 'expandtab' is not set, the
-        number of spaces is minimized by using <Tab>s.
+        When enabled, the <Tab> key will indent by 'shiftwidth' if the cursor
+        is in leading whitespace.  The <BS> key has the opposite effect.
+        In leading whitespace, this has the same effect as setting
+        'softtabstop' to the value of 'shiftwidth'.
+        NOTE: in most cases, using 'softtabstop' is a better option.  Have a
+        look at section |30.5| of the user guide for detailed
+        explanations on how Vim works with tabs and spaces.
       ]=],
       full_name = 'smarttab',
       scope = { 'global' },
@@ -8222,18 +8265,24 @@ local options = {
       abbreviation = 'sts',
       defaults = 0,
       desc = [=[
-        Number of spaces that a <Tab> counts for while performing editing
-        operations, like inserting a <Tab> or using <BS>.  It "feels" like
-        <Tab>s are being inserted, while in fact a mix of spaces and <Tab>s is
-        used.  This is useful to keep the 'ts' setting at its standard value
-        of 8, while being able to edit like it is set to 'sts'.  However,
-        commands like "x" still work on the actual characters.
-        When 'sts' is zero, this feature is off.
-        When 'sts' is negative, the value of 'shiftwidth' is used.
-        See also |ins-expandtab|.  When 'expandtab' is not set, the number of
-        spaces is minimized by using <Tab>s.
-        The 'L' flag in 'cpoptions' changes how tabs are used when 'list' is
-        set.
+        Create soft tab stops, separated by 'softtabstop' number of columns.
+        In Insert mode, pressing the <Tab> key will move the cursor to the
+        next soft tab stop, instead of inserting a literal tab.  <BS> behaves
+        similarly in reverse.  Vim inserts a minimal mix of tab and space
+        characters to produce the visual effect.
+
+        This setting does not affect the display of existing tab characters.
+
+        A value of 0 disables this behaviour.  A negative value makes Vim use
+        'shiftwidth'.  If you plan to use 'sts' and 'shiftwidth' with
+        different values, you might consider setting 'smarttab'.
+
+        'softtabstop' is temporarily set to 0 when 'paste' is on and reset
+        when it is turned off.  It is also reset when 'compatible' is set.
+
+        The 'L' flag in 'cpoptions' alters tab behavior when 'list' is
+        enabled.  See also |ins-expandtab| ans user manual section |30.5| for
+        in-depth explanations.
 
         The value of 'softtabstop' will be ignored if |'varsofttabstop'| is set
         to anything other than an empty string.
@@ -8623,6 +8672,7 @@ local options = {
         '%=',
         "%{% &showcmdloc == 'statusline' ? '%-10.S ' : '' %}",
         "%{% exists('b:keymap_name') ? '<'..b:keymap_name..'> ' : '' %}",
+        "%{% &busy > 0 ? '◐ ' : '' %}",
         "%{% &ruler ? ( &rulerformat == '' ? '%-14.(%l,%c%V%) %P' : &rulerformat ) : '' %}",
       }),
       desc = [=[
@@ -9093,8 +9143,8 @@ local options = {
       defaults = 8,
       desc = [=[
         Defines the column multiple used to display the Horizontal Tab
-        character (ASCII 9); a Horizontal Tab always advances to the next
-        tab stop.
+        character (ASCII 9); a Horizontal Tab always advances to the next tab
+        stop.
         The value must be at least 1 and at most 9999.
         If |'vartabstop'| is set, this option is ignored.
         Leave it at 8 unless you have a strong reason (see usr |30.5|).
@@ -9787,21 +9837,20 @@ local options = {
       cb = 'did_set_varsofttabstop',
       defaults = '',
       desc = [=[
-        A list of the number of spaces that a <Tab> counts for while editing,
-        such as inserting a <Tab> or using <BS>.  It "feels" like variable-
-        width <Tab>s are being inserted, while in fact a mixture of spaces
-        and <Tab>s is used.  Tab widths are separated with commas, with the
-        final value applying to all subsequent tabs.
+        Defines variable-width soft tab stops.  The value is a comma-separated
+        list of widths in columns.  Each width defines the number of columns
+        before the next soft tab stop.  The last value repeats indefinitely.
 
         For example, when editing assembly language files where statements
         start in the 9th column and comments in the 41st, it may be useful
         to use the following: >vim
         	set varsofttabstop=8,32,8
-        <	This will set soft tabstops with 8 and 8 + 32 spaces, and 8 more
-        for every column thereafter.
+        <	This sets soft tab stops at column 8, then at column 40 (8 + 32), and
+        every 8 columns thereafter.
 
-        Note that the value of |'softtabstop'| will be ignored while
-        'varsofttabstop' is set.
+        Note: this setting overrides 'softtabstop'.
+        See section |30.5| of the user manual for detailed explanations on how
+        Vim works with tabs and spaces.
       ]=],
       full_name = 'varsofttabstop',
       list = 'comma',
@@ -9815,15 +9864,20 @@ local options = {
       cb = 'did_set_vartabstop',
       defaults = '',
       desc = [=[
-        A list of the number of spaces that a <Tab> in the file counts for,
-        separated by commas.  Each value corresponds to one tab, with the
-        final value applying to all subsequent tabs. For example: >vim
-        	set vartabstop=4,20,10,8
-        <	This will make the first tab 4 spaces wide, the second 20 spaces,
-        the third 10 spaces, and all following tabs 8 spaces.
+        Defines variable-width tab stops. The value is a comma-separated list
+        of widths in columns.  Each width defines the number of columns
+        before the next tab stop; the last value repeats indefinitely.
 
-        Note that the value of |'tabstop'| will be ignored while 'vartabstop'
-        is set.
+        For example: >
+        	:set vartabstop=4,8
+        <	This places the first tab stop 4 columns from the start of the line
+        and each subsequent tab stop 8 columns apart.
+
+        Note: this setting overrides 'tabstop'.
+        On UNIX, it is recommended to keep the default tabstop value of 8.
+        Consider setting 'varsofttabstop' instead.
+        See section |30.5| of the user manual for detailed explanations on how
+        Vim works with tabs and spaces.
       ]=],
       full_name = 'vartabstop',
       list = 'comma',
@@ -10077,7 +10131,10 @@ local options = {
         	:set wc=X
         	:set wc=^I
         	set wc=<Tab>
-        <
+        <	'wildchar' also enables completion in search pattern contexts such as
+        |/|, |?|, |:s|, |:g|, |:v|, and |:vim|.  To insert a literal <Tab>
+        instead of triggering completion, type <C-V><Tab> or "\t".
+        See also |'wildoptions'|.
       ]=],
       full_name = 'wildchar',
       scope = { 'global' },
@@ -10272,12 +10329,26 @@ local options = {
     {
       abbreviation = 'wop',
       defaults = 'pum,tagfile',
-      values = { 'fuzzy', 'tagfile', 'pum' },
+      values = { 'fuzzy', 'tagfile', 'pum', 'exacttext' },
       flags = true,
       deny_duplicates = true,
       desc = [=[
         A list of words that change how |cmdline-completion| is done.
         The following values are supported:
+          exacttext	When this flag is present, search pattern completion
+        		(e.g., in |/|, |?|, |:s|, |:g|, |:v|, and |:vim|)
+        		shows exact buffer text as menu items, without
+        		preserving regex artifacts like position
+        		anchors (e.g., |/\\<|).  This provides more intuitive
+        		menu items that match the actual buffer text.
+        		However, searches may be less accurate since the
+        		pattern is not preserved exactly.
+        		By default, Vim preserves the typed pattern (with
+        		anchors) and appends the matched word.  This preserves
+        		search correctness, especially when using regular
+        		expressions or with 'smartcase' enabled.  However, the
+        		case of the appended matched word may not exactly
+        		match the case of the word in the buffer.
           fuzzy		Use |fuzzy-matching| to find completion matches. When
         		this value is specified, wildcard expansion will not
         		be used for completion.  The matches will be sorted by
@@ -10293,6 +10364,9 @@ local options = {
         		is displayed per line.  Often used tag kinds are:
         			d	#define
         			f	function
+
+        This option does not apply to |ins-completion|. See 'completeopt' for
+        that.
       ]=],
       full_name = 'wildoptions',
       list = 'onecomma',
@@ -10374,6 +10448,9 @@ local options = {
       type = 'number',
     },
     {
+      full_name = 'winborder',
+      scope = { 'global' },
+      cb = 'did_set_winborder',
       defaults = { if_true = '' },
       values = { '', 'double', 'single', 'shadow', 'rounded', 'solid', 'bold', 'none' },
       desc = [=[
@@ -10386,11 +10463,14 @@ local options = {
         - "shadow": Drop shadow effect, by blending with the background.
         - "single": Single-line box.
         - "solid": Adds padding by a single whitespace cell.
+        - custom: comma-separated list of exactly 8 characters in clockwise
+          order starting from topleft. Example: >lua
+             vim.o.winborder='+,-,+,|,+,-,+,|'
+        <
       ]=],
-      full_name = 'winborder',
-      scope = { 'global' },
       short_desc = N_('border of floating window'),
       type = 'string',
+      list = 'onecomma',
       varname = 'p_winborder',
     },
     {

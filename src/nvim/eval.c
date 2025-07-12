@@ -78,6 +78,7 @@
 #include "nvim/strings.h"
 #include "nvim/tag.h"
 #include "nvim/types_defs.h"
+#include "nvim/undo.h"
 #include "nvim/version.h"
 #include "nvim/vim_defs.h"
 #include "nvim/window.h"
@@ -7846,6 +7847,7 @@ void ex_echo(exarg_T *eap)
     if (!eap->skip) {
       if (atstart) {
         atstart = false;
+        msg_ext_set_kind("echo");
         // Call msg_start() after eval1(), evaluating the expression
         // may cause a message to appear.
         if (eap->cmdidx == CMD_echo) {
@@ -7861,11 +7863,8 @@ void ex_echo(exarg_T *eap)
         msg_puts_hl(" ", echo_hl_id, false);
       }
       char *tofree = encode_tv2echo(&rettv, NULL);
-      if (*tofree != NUL) {
-        msg_ext_set_kind("echo");
-        msg_ext_append = eap->cmdidx == CMD_echon;
-        msg_multiline(cstr_as_string(tofree), echo_hl_id, true, false, &need_clear);
-      }
+      msg_ext_append = eap->cmdidx == CMD_echon;
+      msg_multiline(cstr_as_string(tofree), echo_hl_id, true, false, &need_clear);
       xfree(tofree);
     }
     tv_clear(&rettv);
@@ -8659,11 +8658,43 @@ void eval_fmt_source_name_line(char *buf, size_t bufsize)
   }
 }
 
-void invoke_prompt_callback(void)
+/// Gets the current user-input in prompt buffer `buf`, or NULL if buffer is not a prompt buffer.
+char *prompt_get_input(buf_T *buf)
+{
+  if (!bt_prompt(buf)) {
+    return NULL;
+  }
+  linenr_T lnum_start = buf->b_prompt_start.mark.lnum;
+  linenr_T lnum_last = buf->b_ml.ml_line_count;
+
+  char *text = ml_get_buf(buf, lnum_start);
+  char *prompt = prompt_text();
+  if (strlen(text) >= strlen(prompt)) {
+    text += strlen(prompt);
+  }
+
+  char *full_text = xstrdup(text);
+  for (linenr_T i = lnum_start + 1; i <= lnum_last; i++) {
+    char *half_text = concat_str(full_text, "\n");
+    xfree(full_text);
+    full_text = concat_str(half_text, ml_get_buf(buf, i));
+    xfree(half_text);
+  }
+  return full_text;
+}
+
+/// Invokes the user-defined callback defined for the current prompt-buffer.
+void prompt_invoke_callback(void)
 {
   typval_T rettv;
   typval_T argv[2];
   linenr_T lnum = curbuf->b_ml.ml_line_count;
+
+  char *user_input = prompt_get_input(curbuf);
+
+  if (!user_input) {
+    return;
+  }
 
   // Add a new line for the prompt before invoking the callback, so that
   // text can always be inserted above the last line.
@@ -8671,22 +8702,26 @@ void invoke_prompt_callback(void)
   appended_lines_mark(lnum, 1);
   curwin->w_cursor.lnum = lnum + 1;
   curwin->w_cursor.col = 0;
+  curbuf->b_prompt_start.mark.lnum = lnum + 1;
 
   if (curbuf->b_prompt_callback.type == kCallbackNone) {
-    return;
+    xfree(user_input);
+    goto theend;
   }
-  char *text = ml_get(lnum);
-  char *prompt = prompt_text();
-  if (strlen(text) >= strlen(prompt)) {
-    text += strlen(prompt);
-  }
+
   argv[0].v_type = VAR_STRING;
-  argv[0].vval.v_string = xstrdup(text);
+  argv[0].vval.v_string = user_input;
   argv[1].v_type = VAR_UNKNOWN;
 
   callback_call(&curbuf->b_prompt_callback, 1, argv, &rettv);
   tv_clear(&argv[0]);
   tv_clear(&rettv);
+
+theend:
+  // clear undo history on submit
+  u_clearallandblockfree(curbuf);
+
+  curbuf->b_prompt_start.mark.lnum = curbuf->b_ml.ml_line_count;
 }
 
 /// @return  true when the interrupt callback was invoked.
