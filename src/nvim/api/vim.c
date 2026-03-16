@@ -2574,3 +2574,8 @@ void nvim__redraw(Dict(redraw) *opts, Error *err)
   RedrawingDisabled = save_rd;
   p_lz = save_lz;
 }
+
+void nvim__set_restart_on_crash(String progpath, Array argv)
+{
+  ui_call__set_restart_on_crash_exit(progpath, argv);
+}
