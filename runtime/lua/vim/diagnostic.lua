@@ -177,10 +177,9 @@ local M = vim._defer_require('vim.diagnostic', {
 
 --- @class vim.diagnostic.Opts.Status
 ---
---- A function that accepts a mapping of |diagnostic-severity| to the number of
---- diagnostics of the corresponding severity (only those severity levels that
---- have at least 1 diagnostic) and returns a 'statusline' component.
---- In this case highlights must be applied by the user in the `format` function.
+--- Function that accepts a mapping of |diagnostic-severity| to the number of diagnostics of the
+--- corresponding severity (only those having at least 1 diagnostic) and returns a 'statusline'
+--- component. Highlights must be applied by the `format` function.
 --- Example:
 --- ```lua
 --- local signs = {

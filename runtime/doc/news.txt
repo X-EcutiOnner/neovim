@@ -49,9 +49,6 @@ TREESITTER
 UI
 
 • todo
-• `vim.ui.img` experimental module added to display images within neovim.
-• `:checkhealth vim.ui.img` reports terminal graphics protocol support.
-• `vim.ui.img.del(math.huge)` clears all images.
 
 VIMSCRIPT
 
@@ -131,7 +128,8 @@ DEFAULTS
 
 DIAGNOSTICS
 
-• todo
+• |vim.diagnostic.status()| uses the severity names defined by the `signs`
+  field of |vim.diagnostic.config()|, if any.
 
 EDITOR
 
@@ -164,6 +162,8 @@ LSP
 
 LUA
 
+• |vim.ui.img| can display images. Use `:checkhealth img` to confirm your
+  terminal supports it.
 • |vim.net.request()| can specify custom headers by passing `opts.headers`.
 • |vim.net.request()| can now accept  `method` param overload for multiple HTTP methods.
 • |writefile()| treats Lua strings as "blob", so it can be used to write
@@ -221,7 +221,8 @@ TREESITTER
 • |v_]N| |v_[N| expand selection to sibling treesitter node.
 • |treesitter-highlight-conceal| can be removed by adding a `@noconceal`
   capture.
-• |vim.treesitter.select()| starts or adjusts a visual selection at cursor, based on tree nodes.
+• |vim.treesitter.select()| starts or adjusts a visual selection at cursor,
+  based on tree nodes.
 
 TUI
 
@@ -240,9 +241,7 @@ VIMSCRIPT
 
 • |v:exitreason| is set before |QuitPre|.
 • |v:starttime| is the process start time (nanoseconds since UNIX epoch).
-• |serverlist()| accepts a new `info` option that returns a list of dicts
-  with `addr`, `pid` and `own` for each server (own + peers),
-  enabling pickers like the future `:connect` host selector.
+• |serverlist()| with `info=true` returns details for each server (own + peers).
 
 ==============================================================================
 CHANGED FEATURES                                                 *news-changed*

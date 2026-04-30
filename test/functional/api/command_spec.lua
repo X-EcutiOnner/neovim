@@ -56,15 +56,6 @@ describe('nvim_get_commands', function()
   it('validation', function()
     eq('builtin=true not implemented', pcall_err(api.nvim_get_commands, { builtin = true }))
     eq("Invalid key: 'foo'", pcall_err(api.nvim_get_commands, { foo = 'blah' }))
-    matches(
-      "Invalid 'desc'",
-      pcall_err(
-        exec_lua,
-        [[
-        vim.api.nvim_create_user_command('Bad', 'echo "hi"', { desc = 123 })
-      ]]
-      )
-    )
   end)
 
   it('gets global user-defined commands', function()
@@ -842,7 +833,17 @@ describe('nvim_create_user_command', function()
     assert_alive()
   end)
 
-  it('does not allow invalid command names', function()
+  it('validation', function()
+    matches(
+      "Invalid 'desc'",
+      pcall_err(
+        exec_lua,
+        [[
+        vim.api.nvim_create_user_command('Bad', 'echo "hi"', { desc = 123 })
+      ]]
+      )
+    )
+
     eq(
       "Invalid command name (must start with uppercase): 'test'",
       pcall_err(
