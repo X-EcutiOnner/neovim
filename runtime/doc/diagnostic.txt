@@ -673,12 +673,11 @@ Lua module: vim.diagnostic                                    *diagnostic-api*
 
     Fields: ~
       • {format}?  (`fun(counts:table<vim.diagnostic.Severity,integer>): string`)
-                   A function that accepts a mapping of |diagnostic-severity|
-                   to the number of diagnostics of the corresponding severity
-                   (only those severity levels that have at least 1
-                   diagnostic) and returns a 'statusline' component. In this
-                   case highlights must be applied by the user in the `format`
-                   function. Example: >lua
+                   Function that accepts a mapping of |diagnostic-severity| to
+                   the number of diagnostics of the corresponding severity
+                   (only those having at least 1 diagnostic) and returns a
+                   'statusline' component. Highlights must be applied by the
+                   `format` function. Example: >lua
                        local signs = {
                          [vim.diagnostic.severity.ERROR] = "A",
                          -- ...
