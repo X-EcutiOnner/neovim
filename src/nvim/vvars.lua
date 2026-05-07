@@ -447,6 +447,16 @@ M.vars = {
       encoding.  See |multi-lang|.
     ]=],
   },
+  useractive = {
+    type = 'integer',
+    desc = [=[
+      Timestamp indicating the most recent user activity.
+      Updated every time a key is received from a UI
+      (TUI keystrokes or RPC |nvim_input()|).
+      Initialized to 0 (no user activity since startup).
+      Read-only.
+    ]=],
+  },
   lc_time = {
     type = 'string',
     desc = [=[

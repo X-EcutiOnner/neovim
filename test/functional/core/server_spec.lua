@@ -231,23 +231,42 @@ describe('server', function()
       by_addr[entry.addr] = entry
     end
 
-    -- own server: own=true, pid matches
+    -- own server: own=true, pid matches, active present
     local own_entry = by_addr[own_addr]
     eq(true, own_entry ~= nil)
     eq(true, own_entry.own)
     eq(self_pid, own_entry.pid)
+    eq('number', type(own_entry.active))
+    eq(eval('v:useractive'), own_entry.active)
 
-    -- peer server: own=false, pid is from peer process
+    -- peer server: own=false, pid + active from peer process
     local peer_entry = by_addr[peer_addr]
     eq(true, peer_entry ~= nil)
     eq(false, peer_entry.own)
     eq('number', type(peer_entry.pid))
+    eq('number', type(peer_entry.active))
     n.set_session(client)
     local peer_pid = fn.getpid()
+    local peer_active = eval('v:useractive')
     n.set_session(current_server)
     eq(peer_pid, peer_entry.pid)
+    eq(peer_active, peer_entry.active)
 
     client:close()
+  end)
+
+  it('v:useractive advances on UI input', function()
+    clear()
+    local before = eval('v:useractive')
+    eq('number', type(before))
+    n.feed('ix<Esc>')
+    local after = eval('v:useractive')
+    eq(true, after > before)
+  end)
+
+  it('v:useractive is read-only', function()
+    clear()
+    matches('E46:', pcall_err(n.command, 'let v:useractive = 0'))
   end)
 
   it('removes stale socket files automatically #36581', function()

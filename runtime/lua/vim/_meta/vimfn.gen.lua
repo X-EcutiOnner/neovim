@@ -8292,12 +8292,11 @@ function vim.fn.searchpos(pattern, flags, stopline, timeout, skip) end
 ---   info  : If |TRUE|, return a list of Dicts with detailed info
 ---           instead of addresses. Implies `peer=true`. Each Dict
 ---           has the following items:
----             addr   (string)  Server address.
----             pid    (number?) PID of the Nvim process owning the
----                              server, or |v:null| if the peer is
----                              unreachable.
----             own    (bool)    Whether this server belongs to the
----                              current Nvim instance.
+---             addr          (string)  Server address.
+---             pid           (number)  PID of the Nvim process.
+---             own           (bool)    Whether this server belongs to
+---                                     the current Nvim instance.
+---             active        (number)  |v:useractive| of the server.
 ---           (default: |FALSE|)
 ---
 --- Example: >vim
