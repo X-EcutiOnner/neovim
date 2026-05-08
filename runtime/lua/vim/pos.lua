@@ -143,6 +143,12 @@ function M.to_lsp(pos, position_encoding)
   -- we can ignore the difference between byte and character.
   if col > 0 then
     col = vim.str_utfindex(get_line(buf, row), position_encoding, col, false)
+  elseif col == 0 and row == api.nvim_buf_line_count(buf) and not vim.bo[buf].endofline then
+    -- Some LSP servers reject ranges that end at the virtual EOF position
+    -- (i.e., `[line_count, 0]`) when the buffer has no trailing newline.
+    -- Normalize such positions to the end of the last real line instead.
+    row = row - 1
+    col = vim.str_utfindex(get_line(buf, row), position_encoding)
   end
 
   ---@type lsp.Position
@@ -178,7 +184,7 @@ function M.lsp(buf, pos, position_encoding)
   if col > 0 then
     -- `strict_indexing` is disabled, because LSP responses are asynchronous,
     -- and the buffer content may have changed, causing out-of-bounds errors.
-    col = vim.str_byteindex(get_line(buf, row), position_encoding, col, false)
+    col = vim.str_byteindex(get_line(buf, row) or '', position_encoding, col, false)
   end
 
   return M.new(buf, row, col)
@@ -202,10 +208,21 @@ end
 ---@param pos vim.Pos
 ---@return integer, integer
 function M.to_extmark(pos)
-  local line_count = api.nvim_buf_line_count(pos.buf)
-
   local row, col = pos[1], pos[2]
-  if col == 0 and row == line_count then
+  -- Consider a buffer like this:
+  -- ```
+  -- 0123456
+  -- abcdefg
+  -- ```
+  --
+  -- Two ways to describe the range of the first line, i.e. '0123456':
+  -- 1. `{ start_row = 0, start_col = 0, end_row = 0, end_col = 7 }`
+  -- 2. `{ start_row = 0, start_col = 0, end_row = 1, end_col = 0 }`
+  --
+  -- Both of the above methods satisfy the "end-exclusive" definition,
+  -- but `nvim_buf_set_extmark()` throws an out-of-bounds error for the second method,
+  -- so we need to convert it to the first method.
+  if col == 0 and row == api.nvim_buf_line_count(pos.buf) then
     row = row - 1
     col = #get_line(pos.buf, row)
   end
