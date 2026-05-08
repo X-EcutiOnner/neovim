@@ -3575,20 +3575,20 @@ void expand_process_user_list(list_T *retlist, char ***matches, int *numMatches,
   ga_init(&ga_info, sizeof(char *), 3);
   // Loop over the items in the list.
   TV_LIST_ITER_CONST(retlist, li, {
+    const typval_T *tv = TV_LIST_ITEM_TV(li);
     char *p = NULL;
     char *abbr = NULL;
     char *kind = NULL;
     char *menu = NULL;
     char *info = NULL;
 
-    if (TV_LIST_ITEM_TV(li)->v_type == VAR_STRING) {
-      if (TV_LIST_ITEM_TV(li)->vval.v_string == NULL) {
+    if (tv->v_type == VAR_STRING) {
+      if (tv->vval.v_string == NULL) {
         continue;  // Skip NULL strings
       }
-      p = xstrdup(TV_LIST_ITEM_TV(li)->vval.v_string);
-    } else if (TV_LIST_ITEM_TV(li)->v_type == VAR_DICT
-               && TV_LIST_ITEM_TV(li)->vval.v_dict != NULL) {
-      dict_T *d = TV_LIST_ITEM_TV(li)->vval.v_dict;
+      p = xstrdup(tv->vval.v_string);
+    } else if (tv->v_type == VAR_DICT && tv->vval.v_dict != NULL) {
+      dict_T *d = tv->vval.v_dict;
       char *word = tv_dict_get_string(d, "word", false);
 
       if (word == NULL) {
