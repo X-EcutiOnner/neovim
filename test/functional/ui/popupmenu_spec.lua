@@ -5277,8 +5277,8 @@ describe('builtin popupmenu', function()
       exec([[
         func DictComp(A, L, P)
           return [
-                \ {'word': 'apple',  'kind': 'f', 'menu': 'fruit',     'info': 'A red fruit'},
-                \ {'word': 'banana', 'kind': 'f', 'menu': 'fruit',     'info': 'A yellow fruit'},
+                \ {'word': 'apple',  'kind': 'f', 'menu': 'fruit',     'info': 'A red fruit',    'abbr': '🍎'},
+                \ {'word': 'banana', 'kind': 'f', 'menu': 'fruit',     'info': 'A yellow fruit', 'abbr': '🍌'},
                 \ {'word': 'carrot', 'kind': 'v', 'menu': 'vegetable', 'info': 'An orange vegetable'},
                 \ 'plain',
                 \ ]
@@ -5302,8 +5302,8 @@ describe('builtin popupmenu', function()
         ## grid 4
           {n:A red fruit}|
         ## grid 5
-          {12: apple  f fruit     }|
-          {n: banana f fruit     }|
+          {12: 🍎     f fruit     }|
+          {n: 🍌     f fruit     }|
           {n: carrot v vegetable }|
           {n: plain              }|
         ]],
@@ -5316,8 +5316,8 @@ describe('builtin popupmenu', function()
         screen:expect([[
                                                                  |
           {1:~                                                      }|*6
-          {1:~       }{12: apple  f fruit     }{n:A red fruit}{1:                }|
-          {1:~       }{n: banana f fruit     }{1:                           }|
+          {1:~       }{12: 🍎     f fruit     }{n:A red fruit}{1:                }|
+          {1:~       }{n: 🍌     f fruit     }{1:                           }|
           {1:~       }{n: carrot v vegetable }{1:                           }|
           {1:~       }{n: plain              }{1:                           }|
           :DictCmd apple^                                         |
@@ -5339,8 +5339,8 @@ describe('builtin popupmenu', function()
         ## grid 4
           {n:A yellow fruit}|
         ## grid 5
-          {n: apple  f fruit     }|
-          {12: banana f fruit     }|
+          {n: 🍎     f fruit     }|
+          {12: 🍌     f fruit     }|
           {n: carrot v vegetable }|
           {n: plain              }|
         ]],
@@ -5353,8 +5353,8 @@ describe('builtin popupmenu', function()
         screen:expect([[
                                                                  |
           {1:~                                                      }|*6
-          {1:~       }{n: apple  f fruit     A yellow fruit}{1:             }|
-          {1:~       }{12: banana f fruit     }{1:                           }|
+          {1:~       }{n: 🍎     f fruit     A yellow fruit}{1:             }|
+          {1:~       }{12: 🍌     f fruit     }{1:                           }|
           {1:~       }{n: carrot v vegetable }{1:                           }|
           {1:~       }{n: plain              }{1:                           }|
           :DictCmd banana^                                        |
@@ -5376,8 +5376,8 @@ describe('builtin popupmenu', function()
         ## grid 4
           {n:An orange vegetable}|
         ## grid 5
-          {n: apple  f fruit     }|
-          {n: banana f fruit     }|
+          {n: 🍎     f fruit     }|
+          {n: 🍌     f fruit     }|
           {12: carrot v vegetable }|
           {n: plain              }|
         ]],
@@ -5390,8 +5390,8 @@ describe('builtin popupmenu', function()
         screen:expect([[
                                                                  |
           {1:~                                                      }|*6
-          {1:~       }{n: apple  f fruit     An orange vegetable}{1:        }|
-          {1:~       }{n: banana f fruit     }{1:                           }|
+          {1:~       }{n: 🍎     f fruit     An orange vegetable}{1:        }|
+          {1:~       }{n: 🍌     f fruit     }{1:                           }|
           {1:~       }{12: carrot v vegetable }{1:                           }|
           {1:~       }{n: plain              }{1:                           }|
           :DictCmd carrot^                                        |
@@ -5413,8 +5413,8 @@ describe('builtin popupmenu', function()
         ## grid 4 (hidden)
           {n:An orange vegetable}|
         ## grid 5
-          {n: apple  f fruit     }|
-          {n: banana f fruit     }|
+          {n: 🍎     f fruit     }|
+          {n: 🍌     f fruit     }|
           {n: carrot v vegetable }|
           {12: plain              }|
         ]],
@@ -5426,8 +5426,8 @@ describe('builtin popupmenu', function()
         screen:expect([[
                                                                  |
           {1:~                                                      }|*6
-          {1:~       }{n: apple  f fruit     }{1:                           }|
-          {1:~       }{n: banana f fruit     }{1:                           }|
+          {1:~       }{n: 🍎     f fruit     }{1:                           }|
+          {1:~       }{n: 🍌     f fruit     }{1:                           }|
           {1:~       }{n: carrot v vegetable }{1:                           }|
           {1:~       }{12: plain              }{1:                           }|
           :DictCmd plain^                                         |
@@ -5449,8 +5449,8 @@ describe('builtin popupmenu', function()
         ## grid 4 (hidden)
           {n:An orange vegetable}|
         ## grid 5
-          {n: apple  f fruit     }|
-          {n: banana f fruit     }|
+          {n: 🍎     f fruit     }|
+          {n: 🍌     f fruit     }|
           {n: carrot v vegetable }|
           {n: plain              }|
         ]],
@@ -5462,8 +5462,8 @@ describe('builtin popupmenu', function()
         screen:expect([[
                                                                  |
           {1:~                                                      }|*6
-          {1:~       }{n: apple  f fruit     }{1:                           }|
-          {1:~       }{n: banana f fruit     }{1:                           }|
+          {1:~       }{n: 🍎     f fruit     }{1:                           }|
+          {1:~       }{n: 🍌     f fruit     }{1:                           }|
           {1:~       }{n: carrot v vegetable }{1:                           }|
           {1:~       }{n: plain              }{1:                           }|
           :DictCmd ^                                              |
@@ -5486,8 +5486,8 @@ describe('builtin popupmenu', function()
         ## grid 3
           {5:-- Command-line completion (^V^N^P) }{6:match 1 of 4}       |
         ## grid 5
-          {12: apple  f fruit     }|
-          {n: banana f fruit     }|
+          {12: 🍎     f fruit     }|
+          {n: 🍌     f fruit     }|
           {n: carrot v vegetable }|
           {n: plain              }|
         ## grid 6
@@ -5501,8 +5501,8 @@ describe('builtin popupmenu', function()
       else
         screen:expect([[
           DictCmd apple^                                          |
-          {1:~      }{12: apple  f fruit     }{n:A red fruit}{1:                 }|
-          {1:~      }{n: banana f fruit     }{1:                            }|
+          {1:~      }{12: 🍎     f fruit     }{n:A red fruit}{1:                 }|
+          {1:~      }{n: 🍌     f fruit     }{1:                            }|
           {1:~      }{n: carrot v vegetable }{1:                            }|
           {1:~      }{n: plain              }{1:                            }|
           {1:~                                                      }|*6
@@ -5523,8 +5523,8 @@ describe('builtin popupmenu', function()
         ## grid 3
           {5:-- Command-line completion (^V^N^P) }{6:match 2 of 4}       |
         ## grid 5
-          {n: apple  f fruit     }|
-          {12: banana f fruit     }|
+          {n: 🍎     f fruit     }|
+          {12: 🍌     f fruit     }|
           {n: carrot v vegetable }|
           {n: plain              }|
         ## grid 6
@@ -5538,8 +5538,8 @@ describe('builtin popupmenu', function()
       else
         screen:expect([[
           DictCmd banana^                                         |
-          {1:~      }{n: apple  f fruit     A yellow fruit}{1:              }|
-          {1:~      }{12: banana f fruit     }{1:                            }|
+          {1:~      }{n: 🍎     f fruit     A yellow fruit}{1:              }|
+          {1:~      }{12: 🍌     f fruit     }{1:                            }|
           {1:~      }{n: carrot v vegetable }{1:                            }|
           {1:~      }{n: plain              }{1:                            }|
           {1:~                                                      }|*6
@@ -5560,8 +5560,8 @@ describe('builtin popupmenu', function()
         ## grid 3
           {5:-- Command-line completion (^V^N^P) }{6:match 3 of 4}       |
         ## grid 5
-          {n: apple  f fruit     }|
-          {n: banana f fruit     }|
+          {n: 🍎     f fruit     }|
+          {n: 🍌     f fruit     }|
           {12: carrot v vegetable }|
           {n: plain              }|
         ## grid 6
@@ -5575,8 +5575,8 @@ describe('builtin popupmenu', function()
       else
         screen:expect([[
           DictCmd carrot^                                         |
-          {1:~      }{n: apple  f fruit     An orange vegetable}{1:         }|
-          {1:~      }{n: banana f fruit     }{1:                            }|
+          {1:~      }{n: 🍎     f fruit     An orange vegetable}{1:         }|
+          {1:~      }{n: 🍌     f fruit     }{1:                            }|
           {1:~      }{12: carrot v vegetable }{1:                            }|
           {1:~      }{n: plain              }{1:                            }|
           {1:~                                                      }|*6
@@ -5597,8 +5597,8 @@ describe('builtin popupmenu', function()
         ## grid 3
           {5:-- Command-line completion (^V^N^P) }{6:match 4 of 4}       |
         ## grid 5
-          {n: apple  f fruit     }|
-          {n: banana f fruit     }|
+          {n: 🍎     f fruit     }|
+          {n: 🍌     f fruit     }|
           {n: carrot v vegetable }|
           {12: plain              }|
         ## grid 6 (hidden)
@@ -5611,8 +5611,8 @@ describe('builtin popupmenu', function()
       else
         screen:expect([[
           DictCmd plain^                                          |
-          {1:~      }{n: apple  f fruit     }{1:                            }|
-          {1:~      }{n: banana f fruit     }{1:                            }|
+          {1:~      }{n: 🍎     f fruit     }{1:                            }|
+          {1:~      }{n: 🍌     f fruit     }{1:                            }|
           {1:~      }{n: carrot v vegetable }{1:                            }|
           {1:~      }{12: plain              }{1:                            }|
           {1:~                                                      }|*6
@@ -5633,8 +5633,8 @@ describe('builtin popupmenu', function()
         ## grid 3
           {5:-- Command-line completion (^V^N^P) }{19:Back at original}   |
         ## grid 5
-          {n: apple  f fruit     }|
-          {n: banana f fruit     }|
+          {n: 🍎     f fruit     }|
+          {n: 🍌     f fruit     }|
           {n: carrot v vegetable }|
           {n: plain              }|
         ## grid 6 (hidden)
@@ -5647,8 +5647,8 @@ describe('builtin popupmenu', function()
       else
         screen:expect([[
           DictCmd ^                                               |
-          {1:~      }{n: apple  f fruit     }{1:                            }|
-          {1:~      }{n: banana f fruit     }{1:                            }|
+          {1:~      }{n: 🍎     f fruit     }{1:                            }|
+          {1:~      }{n: 🍌     f fruit     }{1:                            }|
           {1:~      }{n: carrot v vegetable }{1:                            }|
           {1:~      }{n: plain              }{1:                            }|
           {1:~                                                      }|*6
