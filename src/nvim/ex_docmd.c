@@ -5654,7 +5654,7 @@ static list_T *call_findfunc(char *pat, BoolVarValue cmdcomplete)
 /// Find file names matching "pat" using 'findfunc' and return it in "files".
 /// Used for expanding the :find, :sfind and :tabfind command argument.
 /// Returns OK on success and FAIL otherwise.
-int expand_findfunc(char *pat, char ***files, int *numMatches)
+int expand_findfunc(expand_T *xp, char *pat, char ***files, int *numMatches)
 {
   *numMatches = 0;
   *files = NULL;
@@ -5670,18 +5670,7 @@ int expand_findfunc(char *pat, char ***files, int *numMatches)
     return FAIL;
   }
 
-  *files = xmalloc(sizeof(char *) * (size_t)len);
-
-  // Copy all the List items
-  int idx = 0;
-  TV_LIST_ITER_CONST(l, li, {
-    if (TV_LIST_ITEM_TV(li)->v_type == VAR_STRING) {
-      (*files)[idx] = TO_SLASH_SAVE(TV_LIST_ITEM_TV(li)->vval.v_string);
-      idx++;
-    }
-  });
-
-  *numMatches = idx;
+  expand_process_user_list(l, files, numMatches, xp);
   tv_list_free(l);
 
   return OK;

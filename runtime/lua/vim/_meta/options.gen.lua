@@ -2625,7 +2625,9 @@ vim.go.fcs = vim.go.fillchars
 --- `String` and is the `:find` command argument.  The second argument is
 --- a `Boolean` and is set to `v:true` when the function is called to get
 --- a List of command-line completion matches for the `:find` command.
---- The function should return a List of strings.
+--- The function should return a List of strings, or, in the command-line
+--- completion case, whatever a `:command-completion-customlist` function
+--- may return.
 ---
 --- The function is called only once per `:find` command invocation.
 --- The function can process all the directories specified in 'path'.
