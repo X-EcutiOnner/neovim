@@ -2735,7 +2735,7 @@ static int expand_files_and_dirs(expand_T *xp, char *pat, char ***matches, int *
 
   int ret = FAIL;
   if (xp->xp_context == EXPAND_FINDFUNC) {
-    ret = expand_findfunc(pat, matches, numMatches);
+    ret = expand_findfunc(xp, pat, matches, numMatches);
   } else {
     if (xp->xp_context == EXPAND_FILES) {
       flags |= EW_FILE;
@@ -3560,7 +3560,7 @@ static int ExpandUserDefined(const char *const pat, expand_T *xp, regmatch_T *re
   return OK;
 }
 
-static void process_user_list(list_T *retlist, char ***matches, int *numMatches, expand_T *xp)
+void expand_process_user_list(list_T *retlist, char ***matches, int *numMatches, expand_T *xp)
 {
   garray_T ga;
   garray_T ga_abbr;
@@ -3575,20 +3575,20 @@ static void process_user_list(list_T *retlist, char ***matches, int *numMatches,
   ga_init(&ga_info, sizeof(char *), 3);
   // Loop over the items in the list.
   TV_LIST_ITER_CONST(retlist, li, {
+    const typval_T *tv = TV_LIST_ITEM_TV(li);
     char *p = NULL;
     char *abbr = NULL;
     char *kind = NULL;
     char *menu = NULL;
     char *info = NULL;
 
-    if (TV_LIST_ITEM_TV(li)->v_type == VAR_STRING) {
-      if (TV_LIST_ITEM_TV(li)->vval.v_string == NULL) {
-        continue;  // Skip empty strings
+    if (tv->v_type == VAR_STRING) {
+      if (tv->vval.v_string == NULL) {
+        continue;  // Skip NULL strings
       }
-      p = xstrdup(TV_LIST_ITEM_TV(li)->vval.v_string);
-    } else if (TV_LIST_ITEM_TV(li)->v_type == VAR_DICT
-               && TV_LIST_ITEM_TV(li)->vval.v_dict != NULL) {
-      dict_T *d = TV_LIST_ITEM_TV(li)->vval.v_dict;
+      p = xstrdup(tv->vval.v_string);
+    } else if (tv->v_type == VAR_DICT && tv->vval.v_dict != NULL) {
+      dict_T *d = tv->vval.v_dict;
       char *word = tv_dict_get_string(d, "word", false);
 
       if (word == NULL) {
@@ -3612,7 +3612,6 @@ static void process_user_list(list_T *retlist, char ***matches, int *numMatches,
     GA_APPEND(char *, &ga_menu, menu);
     GA_APPEND(char *, &ga_info, info);
   });
-  tv_list_unref(retlist);
 
   *matches = ga.ga_data;
   *numMatches = ga.ga_len;
@@ -3652,7 +3651,8 @@ static int ExpandUserList(expand_T *xp, char ***matches, int *numMatches)
     return FAIL;
   }
 
-  process_user_list(retlist, matches, numMatches, xp);
+  expand_process_user_list(retlist, matches, numMatches, xp);
+  tv_list_unref(retlist);
   return OK;
 }
 
@@ -3667,7 +3667,8 @@ static int ExpandUserLua(expand_T *xp, int *numMatches, char ***matches)
 
   list_T *const retlist = rettv.vval.v_list;
 
-  process_user_list(retlist, matches, numMatches, xp);
+  expand_process_user_list(retlist, matches, numMatches, xp);
+  tv_list_unref(retlist);
   return OK;
 }
 

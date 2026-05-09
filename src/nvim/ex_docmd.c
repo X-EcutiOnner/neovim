@@ -5654,7 +5654,7 @@ static list_T *call_findfunc(char *pat, BoolVarValue cmdcomplete)
 /// Find file names matching "pat" using 'findfunc' and return it in "files".
 /// Used for expanding the :find, :sfind and :tabfind command argument.
 /// Returns OK on success and FAIL otherwise.
-int expand_findfunc(char *pat, char ***files, int *numMatches)
+int expand_findfunc(expand_T *xp, char *pat, char ***files, int *numMatches)
 {
   *numMatches = 0;
   *files = NULL;
@@ -5670,18 +5670,7 @@ int expand_findfunc(char *pat, char ***files, int *numMatches)
     return FAIL;
   }
 
-  *files = xmalloc(sizeof(char *) * (size_t)len);
-
-  // Copy all the List items
-  int idx = 0;
-  TV_LIST_ITER_CONST(l, li, {
-    if (TV_LIST_ITEM_TV(li)->v_type == VAR_STRING) {
-      (*files)[idx] = TO_SLASH_SAVE(TV_LIST_ITEM_TV(li)->vval.v_string);
-      idx++;
-    }
-  });
-
-  *numMatches = idx;
+  expand_process_user_list(l, files, numMatches, xp);
   tv_list_free(l);
 
   return OK;
@@ -5705,9 +5694,14 @@ static char *findfunc_find_file(char *findarg, size_t findarg_len, int count)
     if (count > fname_count) {
       semsg(_(e_no_more_file_str_found_in_path), findarg);
     } else {
-      listitem_T *li = tv_list_find(fname_list, count - 1);
-      if (li != NULL && TV_LIST_ITEM_TV(li)->v_type == VAR_STRING) {
-        ret_fname = TO_SLASH_SAVE(TV_LIST_ITEM_TV(li)->vval.v_string);
+      const listitem_T *li = tv_list_find(fname_list, count - 1);
+      if (li != NULL) {
+        const typval_T *tv = TV_LIST_ITEM_TV(li);
+        if (tv->v_type == VAR_STRING && tv->vval.v_string != NULL) {
+          ret_fname = xstrdup(tv->vval.v_string);
+        } else if (tv->v_type == VAR_DICT && tv->vval.v_dict != NULL) {
+          ret_fname = tv_dict_get_string(tv->vval.v_dict, "word", true);
+        }
       }
     }
   }
