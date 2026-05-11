@@ -1401,7 +1401,8 @@ void do_put(int regname, yankreg_T *reg, int dir, int count, int flags)
                               ? 'c'
                               : (flags & PUT_LINE ? 'i' : (dir == FORWARD ? 'a' : 'i'));
 
-    if (has_event(EVENT_TEXTPUTPRE) || has_event(EVENT_TEXTPUTPOST)) {
+    bool has_textput_events = has_event(EVENT_TEXTPUTPRE) || has_event(EVENT_TEXTPUTPOST);
+    if (has_textput_events) {
       add_last_insert++;
     }
 
@@ -1444,12 +1445,11 @@ void do_put(int regname, yankreg_T *reg, int dir, int count, int flags)
     if (has_event(EVENT_TEXTPUTPRE)) {
       put_do_autocmd('.', NULL, NULL, false, dir);
     }
-
     if (has_event(EVENT_TEXTPUTPOST)) {
       put_do_autocmd('.', NULL, NULL, true, dir);
     }
 
-    if (--add_last_insert == 0) {
+    if (has_textput_events && --add_last_insert == 0) {
       ga_clear(&last_insert_ga);
     }
 
