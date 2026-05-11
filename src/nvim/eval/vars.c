@@ -2261,7 +2261,7 @@ char *set_cmdarg(exarg_T *eap, char *oldarg)
     xlen += (size_t)rc;
   }
   if (eap->force_enc != 0) {
-    rc = snprintf(newval + (xlen), newval_len - xlen, " ++enc=%s", eap->cmd + eap->force_enc);
+    rc = snprintf(newval + xlen, newval_len - xlen, " ++enc=%s", eap->cmd + eap->force_enc);
     if (rc < 0) {
       goto error;
     }
