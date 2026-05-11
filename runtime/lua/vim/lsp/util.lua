@@ -450,7 +450,7 @@ end
 ---
 ---@param text_document_edit lsp.TextDocumentEdit
 ---@param index? integer: Optional index of the edit, if from a list of edits (or nil, if not from a list)
----@param position_encoding? 'utf-8'|'utf-16'|'utf-32'
+---@param position_encoding 'utf-8'|'utf-16'|'utf-32'
 ---@param change_annotations? table<string, lsp.ChangeAnnotation>
 ---@see https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocumentEdit
 function M.apply_text_document_edit(
@@ -459,15 +459,10 @@ function M.apply_text_document_edit(
   position_encoding,
   change_annotations
 )
+  vim.validate('position_encoding', position_encoding, 'string')
+
   local text_document = text_document_edit.textDocument
   local bufnr = vim.uri_to_bufnr(text_document.uri)
-  if position_encoding == nil then
-    vim.notify_once(
-      'apply_text_document_edit must be called with valid position encoding',
-      vim.log.levels.WARN
-    )
-    return
-  end
 
   -- `VersionedTextDocumentIdentifier`s version may be null
   --  https://microsoft.github.io/language-server-protocol/specification#versionedTextDocumentIdentifier
@@ -647,13 +642,8 @@ end
 ---@param position_encoding 'utf-8'|'utf-16'|'utf-32' (required)
 ---@see https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_applyEdit
 function M.apply_workspace_edit(workspace_edit, position_encoding)
-  if position_encoding == nil then
-    vim.notify_once(
-      'apply_workspace_edit must be called with valid position encoding',
-      vim.log.levels.WARN
-    )
-    return
-  end
+  vim.validate('position_encoding', position_encoding, 'string')
+
   if workspace_edit.documentChanges then
     for idx, change in ipairs(workspace_edit.documentChanges) do
       if change.kind == 'rename' then
@@ -962,20 +952,15 @@ end
 --- Shows document and optionally jumps to the location.
 ---
 ---@param location lsp.Location|lsp.LocationLink
----@param position_encoding 'utf-8'|'utf-16'|'utf-32'?
+---@param position_encoding 'utf-8'|'utf-16'|'utf-32'
 ---@param opts? vim.lsp.util.show_document.Opts
 ---@return boolean `true` if succeeded
 function M.show_document(location, position_encoding, opts)
+  vim.validate('position_encoding', position_encoding, 'string')
+
   -- location may be Location or LocationLink
   local uri = location.uri or location.targetUri
   if uri == nil then
-    return false
-  end
-  if position_encoding == nil then
-    vim.notify_once(
-      'show_document must be called with valid position encoding',
-      vim.log.levels.WARN
-    )
     return false
   end
   local bufnr = vim.uri_to_bufnr(uri)
@@ -1818,17 +1803,10 @@ end)
 --- |setloclist()|.
 ---
 ---@param locations lsp.Location[]|lsp.LocationLink[]
----@param position_encoding? 'utf-8'|'utf-16'|'utf-32'
----                         default to first client of buffer
+---@param position_encoding 'utf-8'|'utf-16'|'utf-32'
 ---@return vim.quickfix.entry[] # See |setqflist()| for the format
 function M.locations_to_items(locations, position_encoding)
-  if position_encoding == nil then
-    vim.notify_once(
-      'locations_to_items must be called with valid position encoding',
-      vim.log.levels.WARN
-    )
-    position_encoding = vim.lsp.get_clients({ bufnr = 0 })[1].offset_encoding
-  end
+  vim.validate('position_encoding', position_encoding, 'string')
 
   local items = {} --- @type vim.quickfix.entry[]
 
@@ -1885,18 +1863,12 @@ end
 ---
 ---@param symbols lsp.DocumentSymbol[]|lsp.SymbolInformation[]|lsp.WorkspaceSymbol[] list of symbols
 ---@param bufnr? integer buffer handle or 0 for current, defaults to current
----@param position_encoding? 'utf-8'|'utf-16'|'utf-32'
----                         default to first client of buffer
+---@param position_encoding 'utf-8'|'utf-16'|'utf-32'
 ---@return vim.quickfix.entry[] # See |setqflist()| for the format
 function M.symbols_to_items(symbols, bufnr, position_encoding)
+  vim.validate('position_encoding', position_encoding, 'string')
+
   bufnr = vim._resolve_bufnr(bufnr)
-  if position_encoding == nil then
-    vim.notify_once(
-      'symbols_to_items must be called with valid position encoding',
-      vim.log.levels.WARN
-    )
-    position_encoding = assert(vim.lsp.get_clients({ bufnr = bufnr })[1]).offset_encoding
-  end
 
   local items = {} --- @type vim.quickfix.entry[]
   for _, symbol in ipairs(symbols) do
@@ -2015,7 +1987,8 @@ end
 function M.make_given_range_params(start_pos, end_pos, bufnr, position_encoding)
   validate('start_pos', start_pos, 'table', true)
   validate('end_pos', end_pos, 'table', true)
-  validate('position_encoding', position_encoding, 'string', true)
+  validate('position_encoding', position_encoding, 'string')
+
   bufnr = vim._resolve_bufnr(bufnr)
   --- @type [integer, integer]
   local A = { unpack(start_pos or api.nvim_buf_get_mark(bufnr, '<')) }
@@ -2097,19 +2070,13 @@ end
 ---@param buf integer buffer number (0 for current)
 ---@param row integer 0-indexed line
 ---@param col integer 0-indexed byte offset in line
----@param offset_encoding? 'utf-8'|'utf-16'|'utf-32'
----                        defaults to `offset_encoding` of first client of `buf`
----@return integer `offset_encoding` index of the character in line {row} column {col} in buffer {buf}
-function M.character_offset(buf, row, col, offset_encoding)
+---@param position_encoding 'utf-8'|'utf-16'|'utf-32'
+---@return integer `position_encoding` index of the character in line {row} column {col} in buffer {buf}
+function M.character_offset(buf, row, col, position_encoding)
+  vim.validate('position_encoding', position_encoding, 'string')
+
   local line = get_line(buf, row)
-  if offset_encoding == nil then
-    vim.notify_once(
-      'character_offset must be called with valid offset encoding',
-      vim.log.levels.WARN
-    )
-    offset_encoding = assert(vim.lsp.get_clients({ bufnr = buf })[1]).offset_encoding
-  end
-  return vim.str_utfindex(line, offset_encoding, col, false)
+  return vim.str_utfindex(line, position_encoding, col, false)
 end
 
 --- Converts line range (0-based, end-inclusive) to lsp range,
