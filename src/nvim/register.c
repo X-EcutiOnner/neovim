@@ -1272,7 +1272,7 @@ static void put_do_autocmd(int regname, yankreg_T *reg, const String *insert, bo
 {
   static bool recursive = false;
 
-  if (recursive || regname == '_') {
+  if (recursive || (regname == '_' && reg == NULL)) {
     return;
   }
 

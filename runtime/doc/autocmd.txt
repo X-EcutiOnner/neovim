@@ -1277,7 +1277,8 @@ TextPutPost			After text has been put in the current buffer.
 						of the expression.
 				   regname	Name of the register or empty
 						string for the unnamed
-						register.
+						register.  For |nvim_put()|
+						this is set to '_'.
 				   regtype	Type of the register, see
 						|getregtype()|.
 				   visual	True if the operation is
