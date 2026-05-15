@@ -4814,6 +4814,12 @@ endfunction
 
 " s:NetrwMaps: {{{2
 function s:NetrwMaps(islocal)
+    " remove B flag from 'cpo' so that \<CR>, \<Bar>, etc. inside
+    " interpolated path names play back as literal text rather than
+    " the actual key — without this, a crafted directory name can
+    " inject keystrokes into the cmdline the mapping is typing
+    let _cpo = &cpo
+    set cpo-=B
 
     " mouse <Plug> maps: {{{3
     if g:netrw_mousemaps && g:netrw_retmap
@@ -5058,6 +5064,7 @@ function s:NetrwMaps(islocal)
         " support user-specified maps
         call netrw#UserMaps(0)
     endif " }}}3
+    let &cpo = _cpo
 endfunction
 
 " s:NetrwCommands: set up commands                              {{{2
