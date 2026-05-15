@@ -732,4 +732,19 @@ func Test_netrw_bookmark_marked_file()
   bw!
 endfunc
 
+func Test_netrw_mf_command_injection()
+  CheckUnix
+  CheckExecutable touch
+  let path = tempname()
+  let fname = 'x" . execute("silent! !touch poc") . "'
+  call mkdir(path, 'R')
+  exe "cd " path
+  call writefile([], fname)
+  Explore .
+  call search('^x')
+  :norm mf
+  :norm mf
+  call assert_false(filereadable('poc'), 'Command injection via mf command')
+endfunc
+
 " vim:ts=8 sts=2 sw=2 et
