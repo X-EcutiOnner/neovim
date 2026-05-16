@@ -381,6 +381,7 @@ error('Cannot require a meta file')
 --- @field buf? integer
 --- @field filetype? string
 --- @field scope? string
+--- @field tab? integer
 --- @field win? integer
 
 --- @class vim.api.keyset.redraw
