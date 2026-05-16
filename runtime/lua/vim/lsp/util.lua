@@ -137,23 +137,6 @@ local get_lines = vim.pos._get_lines
 
 local get_line = vim.pos._get_line
 
---- Position is a https://microsoft.github.io/language-server-protocol/specifications/specification-current/#position
----@param position lsp.Position
----@param position_encoding 'utf-8'|'utf-16'|'utf-32'
----@return integer
-local function get_line_byte_from_position(bufnr, position, position_encoding)
-  -- LSP's line and characters are 0-indexed
-  -- Vim's line and columns are 1-indexed
-  local col = position.character
-  -- When on the first character, we can ignore the difference between byte and
-  -- character
-  if col > 0 then
-    local line = get_line(bufnr, position.line) or ''
-    return vim.str_byteindex(line, position_encoding, col, false)
-  end
-  return col
-end
-
 --- Applies a list of text edits to a buffer. Note: this mutates `text_edits` (sorts in-place and
 --- adds `_index` fields).
 ---
@@ -229,10 +212,9 @@ function M.apply_text_edits(text_edits, bufnr, position_encoding, change_annotat
       text_edit.newText, _ = string.gsub(text_edit.newText, '\r\n?', '\n')
 
       -- Convert from LSP style ranges to Neovim style ranges.
-      local start_row = text_edit.range.start.line
-      local start_col = get_line_byte_from_position(bufnr, text_edit.range.start, position_encoding)
-      local end_row = text_edit.range['end'].line
-      local end_col = get_line_byte_from_position(bufnr, text_edit.range['end'], position_encoding)
+      local range = vim.range.lsp(bufnr, text_edit.range, position_encoding)
+      local start_row, start_col, end_row, end_col =
+        range.start_row, range.start_col, range.end_row, range.end_col
       local text = vim.split(text_edit.newText, '\n', { plain = true })
 
       local max = api.nvim_buf_line_count(bufnr)
@@ -902,8 +884,8 @@ function M.show_document(location, position_encoding, opts)
   local range = location.range or location.targetSelectionRange
   if range then
     -- Jump to new location (adjusting for encoding of characters)
-    local row = range.start.line
-    local col = get_line_byte_from_position(bufnr, range.start, position_encoding)
+    local pos = vim.pos.lsp(bufnr, range.start, position_encoding)
+    local row, col = pos.row, pos.col
     api.nvim_win_set_cursor(win, { row + 1, col })
     vim._with({ win = win }, function()
       -- Open folds under the cursor
@@ -1675,12 +1657,7 @@ do --[[ References ]]
     validate('bufnr', bufnr, 'number', true)
     validate('position_encoding', position_encoding, 'string', false)
     for _, reference in ipairs(references) do
-      local range = reference.range
-      local start_line = range.start.line
-      local end_line = range['end'].line
-
-      local start_idx = get_line_byte_from_position(bufnr, range.start, position_encoding)
-      local end_idx = get_line_byte_from_position(bufnr, range['end'], position_encoding)
+      local range = vim.range.lsp(bufnr, reference.range, position_encoding)
 
       local document_highlight_kind = {
         [protocol.DocumentHighlightKind.Text] = 'LspReferenceText',
@@ -1692,8 +1669,8 @@ do --[[ References ]]
         bufnr,
         reference_ns,
         document_highlight_kind[kind],
-        { start_line, start_idx },
-        { end_line, end_idx },
+        { range.start_row, range.start_col },
+        { range.end_row, range.end_col },
         { priority = vim.hl.priorities.user }
       )
     end
@@ -1783,27 +1760,21 @@ function M.symbols_to_items(symbols, bufnr, position_encoding)
 
   local items = {} --- @type vim.quickfix.entry[]
   for _, symbol in ipairs(symbols) do
-    --- @type string?, lsp.Range?
+    --- @type string?, vim.Range?
     local filename, range
 
     if symbol.location then
       --- @cast symbol lsp.SymbolInformation
       filename = vim.uri_to_fname(symbol.location.uri)
-      range = symbol.location.range
+      range = vim.range.lsp(bufnr, symbol.location.range, position_encoding)
     elseif symbol.selectionRange then
       --- @cast symbol lsp.DocumentSymbol
       filename = api.nvim_buf_get_name(bufnr)
-      range = symbol.selectionRange
+      range = vim.range.lsp(bufnr, symbol.selectionRange, position_encoding)
     end
 
     if filename and range then
       local kind = protocol.SymbolKind[symbol.kind] or 'Unknown'
-
-      local lnum = range['start'].line + 1
-      local col = get_line_byte_from_position(bufnr, range['start'], position_encoding) + 1
-      local end_lnum = range['end'].line + 1
-      local end_col = get_line_byte_from_position(bufnr, range['end'], position_encoding) + 1
-
       local is_deprecated = not vim.isnil(symbol.deprecated or nil)
         or (
           not vim.isnil(symbol.tags)
@@ -1819,10 +1790,10 @@ function M.symbols_to_items(symbols, bufnr, position_encoding)
 
       items[#items + 1] = {
         filename = filename,
-        lnum = lnum,
-        col = col,
-        end_lnum = end_lnum,
-        end_col = end_col,
+        lnum = range.start_row + 1,
+        col = range.start_col + 1,
+        end_lnum = range.end_row + 1,
+        end_col = range.end_col + 1,
         kind = kind,
         text = text,
       }
@@ -1836,23 +1807,6 @@ function M.symbols_to_items(symbols, bufnr, position_encoding)
   return items
 end
 
----@param win integer?: |window-ID| or 0 for current, defaults to current
----@param position_encoding 'utf-8'|'utf-16'|'utf-32'
-local function make_position_param(win, position_encoding)
-  win = win or 0
-  local buf = api.nvim_win_get_buf(win)
-  local row, col = unpack(api.nvim_win_get_cursor(win))
-  row = row - 1
-  local line = api.nvim_buf_get_lines(buf, row, row + 1, true)[1]
-  if not line then
-    return { line = 0, character = 0 }
-  end
-
-  col = vim.str_utfindex(line, position_encoding, col, false)
-
-  return { line = row, character = col }
-end
-
 --- Creates a `TextDocumentPositionParams` object for the current buffer and cursor position.
 ---
 ---@param win integer?: |window-ID| or 0 for current, defaults to current
@@ -1864,7 +1818,7 @@ function M.make_position_params(win, position_encoding)
   local buf = api.nvim_win_get_buf(win)
   return {
     textDocument = M.make_text_document_params(buf),
-    position = make_position_param(win, position_encoding),
+    position = vim.pos.cursor(buf, api.nvim_win_get_cursor(win)):to_lsp(position_encoding),
   }
 end
 
@@ -1877,8 +1831,9 @@ end
 ---@param position_encoding "utf-8"|"utf-16"|"utf-32"
 ---@return { textDocument: { uri: lsp.DocumentUri }, range: lsp.Range }
 function M.make_range_params(win, position_encoding)
-  local buf = api.nvim_win_get_buf(win or 0)
-  local position = make_position_param(win, position_encoding)
+  win = win or 0
+  local buf = api.nvim_win_get_buf(win)
+  local position = vim.pos.cursor(buf, api.nvim_win_get_cursor(win)):to_lsp(position_encoding)
   return {
     textDocument = M.make_text_document_params(buf),
     range = { start = position, ['end'] = position },
@@ -1990,40 +1945,6 @@ function M.character_offset(buf, row, col, position_encoding)
   return vim.str_utfindex(line, position_encoding, col, false)
 end
 
---- Converts line range (0-based, end-inclusive) to lsp range,
---- handles absence of a trailing newline
----
----@param bufnr integer
----@param start_line integer
----@param end_line integer
----@param position_encoding 'utf-8'|'utf-16'|'utf-32'
----@return lsp.Range
-function M._make_line_range_params(bufnr, start_line, end_line, position_encoding)
-  local last_line = api.nvim_buf_line_count(bufnr) - 1
-
-  ---@type lsp.Position
-  local end_pos
-
-  if end_line == last_line and not vim.bo[bufnr].endofline then
-    end_pos = {
-      line = end_line,
-      character = M.character_offset(
-        bufnr,
-        end_line,
-        #get_line(bufnr, end_line),
-        position_encoding
-      ),
-    }
-  else
-    end_pos = { line = end_line + 1, character = 0 }
-  end
-
-  return {
-    start = { line = start_line, character = 0 },
-    ['end'] = end_pos,
-  }
-end
-
 ---@class (private) vim.lsp.util._cancel_requests.Filter
 ---@field bufnr? integer
 ---@field clients? vim.lsp.Client[]
@@ -2057,8 +1978,6 @@ function M._cancel_requests(filter)
     end
   end
 end
-
-M._get_line_byte_from_position = get_line_byte_from_position
 
 ---@nodoc
 ---@type table<integer,integer>
